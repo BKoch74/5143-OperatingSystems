@@ -1,9 +1,9 @@
 16 Sept 2025
 5143 Shell Project
 Group Members:
-- Name 1: Mae-Jeanne Preville
-- Name 2: Aretha Fontaine 
-- Name 3: Bryce Koch
+- Mae-Jeanne Preville
+- Aretha Fontaine 
+- Bryce Koch
 
 ## Overview:
 This project implements a basic shell in Python that supports a variety of commands.
