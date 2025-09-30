@@ -18,18 +18,14 @@ Run the `shell.py` file and use the following commands.
 | `rm`      | Removes files/directories       |   Bryce  |
 | `cat`     | Reads and outputs text file     |   Bryce  |
 | `less`    | View the contents of text files |   Bryce  |
-| `head`    | Writes to standard output a     |
-            |  specified number of lines      |   Bryce  |
+| `head`    | Writes to standard output a specified number of lines      |   Bryce  |
 | `tail`    | Outputs last part of files      |   Bryce  |
 | `pwd`     | Print working directory         |   Mae    |
 | `mv`      | Moves files or directories      |   Mae    |
 | `cd`      | Changes the current directory   |   Mae    |
-| `cd..`    | Changes the current directory
-              to one directory up             |   Mae    |
-| `cd~`     | Changes the current directory
-              to the user's home directory    |   Mae    |
-| `sysCheck`| Displays the system health 
-              (command of choice)             |   Mae    |
+| `cd..`    | Changes the current directory to one directory up             |   Mae    |
+| `cd~`     | Changes the current directory to the user's home directory    |   Mae    |
+| `sysCheck`| Displays the system health (command of choice)             |   Mae    |
 | `cp`      | copy files and directories      |  Aretha  |
 | `grep`    | search for specific patterns    |  Aretha  |
 | `wc`      | count lines, words, bytes       |  Aretha  |
@@ -39,4 +35,4 @@ Run the `shell.py` file and use the following commands.
 | `!x`      | Print expanded history          |  Aretha  |
 
 ## Non-Working Components:
--
+N/A
