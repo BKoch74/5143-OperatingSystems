@@ -25,6 +25,7 @@ Run the `shell.py` file and use the following commands.
 | `cd`      | Changes the current directory   |   Mae    |
 | `cd..`    | Changes the current directory to one directory up             |   Mae    |
 | `cd~`     | Changes the current directory to the user's home directory    |   Mae    |
+| `mkdir`   | Creates a new directory    |   Mae    |
 | `sysCheck`| Displays the system health (command of choice)             |   Mae    |
 | `cp`      | Copy files and directories      |  Aretha  |
 | `grep`    | Search for specific patterns    |  Aretha  |
