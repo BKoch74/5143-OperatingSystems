@@ -26,12 +26,12 @@ Run the `shell.py` file and use the following commands.
 | `cd..`    | Changes the current directory to one directory up             |   Mae    |
 | `cd~`     | Changes the current directory to the user's home directory    |   Mae    |
 | `sysCheck`| Displays the system health (command of choice)             |   Mae    |
-| `cp`      | copy files and directories      |  Aretha  |
-| `grep`    | search for specific patterns    |  Aretha  |
-| `wc`      | count lines, words, bytes       |  Aretha  |
+| `cp`      | Copy files and directories      |  Aretha  |
+| `grep`    | Search for specific patterns    |  Aretha  |
+| `wc`      | Count lines, words, bytes       |  Aretha  |
 | `history` | Check previous activity         |  Aretha  |
-| `chmod`   | change file permission          |  Aretha  |
-| `sort`    | rearrange file alphabetically   |  Aretha  |
+| `chmod`   | Change file permission          |  Aretha  |
+| `sort`    | Rearrange file alphabetically   |  Aretha  |
 | `!x`      | Print expanded history          |  Aretha  |
 
 ## Non-Working Components:
