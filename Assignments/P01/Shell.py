@@ -9,7 +9,8 @@ import os
 import sys
 import subprocess
 import shutil
-from time import sleep
+import time
+import pwd
 from rich import print
 from getch import Getch
 from pathlib import Path
@@ -58,19 +59,27 @@ def print_cmd(cmd):
     sys.stdout.flush()
 
 def ls(parts):
+    """
+    ls-like command supporting:
+    -a : show hidden files
+    -l : long format with permissions, owner, size, mtime
+    -h : human-readable sizes (works with -l)
+    Displays horizontally if -l is not used.
+    """
     flags = parts.get("flags", "") or ""
     params = parts.get("params") or []
 
     path = params[0] if params else "."
 
     if not os.path.exists(path):
-        return {"output": None, "error": "Directory doesn't exist"}
+        return {"output": None, "error": f"ls: cannot access '{path}': No such directory"}
 
     try:
         entries = os.listdir(path)
     except PermissionError:
-        return {"output": None, "error": "Permission denied"}
+        return {"output": None, "error": "ls: Permission denied"}
 
+    # Handle -a (show hidden files)
     if 'a' not in flags:
         entries = [e for e in entries if not e.startswith('.')]
 
@@ -84,6 +93,8 @@ def ls(parts):
                 stats = os.stat(full_path)
             except Exception:
                 continue
+
+            # Permissions
             mode = stats.st_mode
             perms = ""
             for shift in [6, 3, 0]:  # user, group, other
@@ -91,6 +102,13 @@ def ls(parts):
                 perms += "w" if mode & (0o200 >> shift) else "-"
                 perms += "x" if mode & (0o100 >> shift) else "-"
 
+            # Owner
+            try:
+                owner = stats.st_uid
+            except KeyError:
+                owner = str(stats.st_uid)
+
+            # Size
             size = stats.st_size
             if 'h' in flags:
                 s = size
@@ -101,12 +119,17 @@ def ls(parts):
                     s /= 1024
             else:
                 size_str = str(size)
-            mtime = int(stats.st_mtime)
-            output_lines.append(f"{perms} {size_str} {mtime} {e}")
-    else:
-        output_lines = entries
 
-    output = "\n".join(output_lines)
+            # Modification time
+            mtime = time.strftime("%Y-%m-%d %H:%M", time.localtime(stats.st_mtime))
+
+            output_lines.append(f"{perms} {owner:8} {size_str:>6} {mtime} {e}")
+
+        output = "\n".join(output_lines)
+    else:
+        # Horizontal output
+        output = "  ".join(entries)
+
     return {"output": output, "error": None}
 
 def rm(parts):
@@ -297,10 +320,24 @@ def cp(parts):
 
 def grep(parts):
     params = parts.get("params", [])
+    flags = parts.get("flags", "") or ""
     redirect_file = parts.get("redirect", None)
     input_data = parts.get("input")  # from a pipe
     errors = []
 
+    if flags and flags[0] == "help" or flags[0] == 'h':
+        help_text = (
+            "Usage: grep [PATTERN] [FILE...]\n"
+            "Search for PATTERN in each FILE or from piped input.\n\n"
+            "Options:\n"
+            "  -h      Display this help message and exit\n"
+            "\n"
+            "Examples:\n"
+            "  grep 'hello' file.txt         Search 'hello' in file.txt\n"
+            "  cat file.txt | grep 'hello'   Search 'hello' from piped input\n"
+            "  grep 'error' *.log > output   Save matching lines to output file\n"
+        )
+        return {"output": help_text, "error": None}
     if not params:
         return {"output": None, "error": "grep: missing search string"}
 

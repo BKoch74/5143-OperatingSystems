@@ -1,0 +1,1 @@
+README.md  Shell.py  Sources  Temp.txt  __pycache__  bacon.txt  bacon.txt:Zone.Identifier  bacon.txt:mshield  bananas  getch.py
