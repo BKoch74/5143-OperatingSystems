@@ -18,8 +18,8 @@ Run the `shell.py` file and use the following commands.
 | `rm`      | Removes files/directories       |   Bryce  |
 | `cat`     | Reads and outputs text file     |   Bryce  |
 | `less`    | View the contents of text files |   Bryce  |
-| `head`    | Writes to standard output a 
-              specified number of lines       |   Bryce  |
+| `head`    | Writes to standard output a     |
+            |  specified number of lines      |   Bryce  |
 | `tail`    | Outputs last part of files      |   Bryce  |
 | `pwd`     | Print working directory         |   Mae    |
 | `mv`      | Moves files or directories      |   Mae    |
