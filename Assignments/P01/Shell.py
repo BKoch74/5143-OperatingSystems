@@ -11,6 +11,7 @@ import subprocess
 from time import sleep
 from rich import print
 from getch import Getch
+from pathlib import path
 
 ##################################################################################
 ##################################################################################
@@ -381,100 +382,100 @@ def history(parts):
     error = "\n".join(errors) if errors else None
     return {"output": output, "error" : error}
 
- def chmod(parts):
-        params = parts.get("params", [])
-        redirect_file = parts.get("redirect",None)
-        errors = []
-        output = None
+def chmod(parts):
+    params = parts.get("params", [])
+    redirect_file = parts.get("redirect",None)
+    errors = []
+    output = None
         
-        if not params or len(params) <2:
-            return {"output": None, "error": "chmod: missing mode/file"}
+    if not params or len(params) <2:
+       return {"output": None, "error": "chmod: missing mode/file"}
             
-        m,f = params[:2]
-        try:
-            subprocess.run(["chmod", m, f])
-            output = f"permissions for {f} are set to {m}"
-        except Exception as err:
-            errors.append(f"chmod: {err}")
+    m,f = params[:2]
+    try:
+        subprocess.run(["chmod", m, f])
+        output = f"permissions for {f} are set to {m}"
+    except Exception as err:
+        errors.append(f"chmod: {err}")
+        output = None
+            
+    if redirect_file and output:
+       try:
+         with open(redirect_file, "w") as f:
+            f.write(output)
             output = None
-            
-        if redirect_file and output:
-            try:
-                with open(redirect_file, "w") as f:
-                    f.write(output)
-                output = None
-            except Exception as err:
-                errors.append(f"chmod: cannot write to {redirect_file}: {err}")
+       except Exception as err:
+            errors.append(f"chmod: cannot write to {redirect_file}: {err}")
                 
-        error = "\n".join(errors) if errors else None
-        return {"output": output, "error" : error}
+    error = "\n".join(errors) if errors else None
+    return {"output": output, "error" : error}
 
 
- def sorting(parts):
-        params = parts.get("params", [])
-        input_data = parts.get("input", None)
-        redirect_file = parts.get("redirect",None)
-        errors = []
-        contents = []
-        output = None
+def sorting(parts):
+    params = parts.get("params", [])
+    input_data = parts.get("input", None)
+    redirect_file = parts.get("redirect",None)
+    errors = []
+    contents = []
+    output = None
         
-        if input_data:
+    if input_data:
             contents.extend(input_data.splitlines())
-            
-        for file in params:
-            try:
-                with open(file, "r") as f:
+    for file in params:
+        try:
+           with open(file, "r") as f:
                     contents.extend(f.readlines())
-            except Exception as err:
-                errors.append(f"sort:{file}: {err}")
+        except Exception as err:
+            errors.append(f"sort:{file}: {err}")
                 
-        try:
+    try:
             output = "\n".join(sorted([line.strip() for line in contents]))
-        except Exception as err:
-            errors.append(f"sort: {err}")
-            output = None
-                
-        if redirect_file and output:
-            try:
-                with open(redirect_file, "w") as f:
-                    f.write(output)
-                output = None
-            except Exception as err:
-                errors.append(f"sort: cannot write to {redirect_file}: {err}")
-                    
-        error = "\n".join(errors) if errors else None
-        return {"output": output, "error" : error} 
-
-def history_expansion(parts):
-        params = parts.get("params", [])
-        redirect_file = parts.get("redirect",None)
-        errors = []
+    except Exception as err:
+        errors.append(f"sort: {err}")
         output = None
+                
+    if redirect_file and output:
+      try:
+          with open(redirect_file, "w") as f:
+              f.write(output)
+          output = None
+      except Exception as err:
+          errors.append(f"sort: cannot write to {redirect_file}: {err}")
+                    
+    error = "\n".join(errors) if errors else None
+    return {"output": output, "error" : error} 
+       
         
-        if not params:
-            return {"output": None, "error": "history_expansion: command missing"}
+def history_expansion(parts):
+    params = parts.get("params", [])
+    redirect_file = parts.get("redirect",None)
+    errors = []
+    output = None
+        
+    if not params:
+       return {"output": None, "error": "history_expansion: command missing"}
             
-        cmd_num = params[0]
+    cmd_num = params[0]
         
-        try:
-            result = subprocess.run(f"!{cmd_num}", shell = True, capture_output = True, text =True)
-            output = result.stdout.strip()
-            if result.stderr:
-                errors.append(result.stderr.strip())
-        except Exception as err:
-                errors.append(f"history_expansion: {err}")
-                output = None
+    try:
+       result = subprocess.run(f"!{cmd_num}", shell = True, capture_output = True, text =True)
+       output = result.stdout.strip()
+       if result.stderr:
+          errors.append(result.stderr.strip())
+    except Exception as err:
+       errors.append(f"history_expansion: {err}")
+       output = None
                 
-        if redirect_file and output:
-            try:
-                with open(redirect_file, "w") as f:
+    if redirect_file and output:
+       try:
+          with open(redirect_file, "w") as f:
                     f.write(output)
-                output = None
-            except Exception as err:
-                errors.append(f"history_expansion: cannot write to {redirect_file}: {err}")
+          output = None
+       except Exception as err:
+          errors.append(f"history_expansion: cannot write to {redirect_file}: {err}")
                 
-        error = "\n".join(errors) if errors else None
-        return {"output": output, "error" : error}
+    error = "\n".join(errors) if errors else None
+    return {"output": output, "error" : error}
 
 
 
