@@ -36,4 +36,4 @@ Run the `shell.py` file and use the following commands.
 | `!x`      | Print expanded history          |  Aretha  |
 
 ## Non-Working Components:
-N/A
+Command of choice. Still working on it.
