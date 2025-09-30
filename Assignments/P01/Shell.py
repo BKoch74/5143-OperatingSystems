@@ -49,8 +49,6 @@ def print_cmd(cmd):
     sys.stdout.write("\r" + prompt + cmd)
     sys.stdout.flush()
 
-import os
-
 def ls(parts):
     flags = parts.get("flags", "") or ""
     params = parts.get("params") or []
