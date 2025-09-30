@@ -7,6 +7,7 @@ This file is about capturing the user input so that you can mimic shell behavior
 """
 import os
 import sys
+import subprocess
 from time import sleep
 from rich import print
 from getch import Getch
@@ -35,11 +36,7 @@ def parse_cmd(cmd_input):
             
         command_list.append(d)
     return command_list
-    
-
-
-
-
+ 
 
 def print_cmd(cmd):
     """This function "cleans" off the command line, then prints
@@ -271,6 +268,154 @@ def less(parts):
 
     return {"output": None, "error": None}
 
+def cp(parts):
+    params = parts.get ("params" , [])
+    redirect_file = parts.get ("redirect", None)
+    errors = []
+    if len(params) < 2:
+        return {"output": None, "error" : "cp command requires a source and destination to operate."}
+    
+    s,d = params [:2]
+    try:
+        content = path(s).read_bytes()
+        path(d).write_bytes(content)
+        output = f"file has been copied {s} to {d}"
+    
+    except Exception as err:
+        errors.append(f" cp: {err}")
+        output = None
+    error = "\n".join(errors) if errors else None
+    return {"output" : output, "error": error}
+
+def grep(parts):
+    params = parts.get ("params" , [])
+    redirect_file = parts.get ("redirect", None)
+    errors = []
+    output = None
+    if not params or len(params) <2:
+        return {"output": None , "error" : "grep requires a pattern to search for within the files"}
+        
+    pattern = params[0]
+    files = params [1:]
+        
+    try:
+        cmd = ["grep","-lic", pattern, *files]
+        results = subprocess.run(cmd,capture_output = True, text = True)
+        output = results.stdout.strip()
+        if results.stderr:
+            errors.append(results.stderr.strip())
+                
+    except Exception as err:
+        errors.append(f"grep: {err}")
+        output = None
+                
+    if redirect_file and output:
+        try:
+            with open(redirect_file, 'w') as f:
+                f.write(output)
+                output = None
+        except Exception as err:
+            errors.append(f"grep: {err}")
+                
+        error = "\n".join(errors) if errors else None
+        return { "output": output, "error": error}
+
+
+def wc(parts):
+    params = parts.get ("params", [])
+    input_data = parts.get ("input", None)
+    redirect_file = parts.get("redirect", None)
+    errors = []
+    output = None 
+    
+    if not params and not input_data:
+        return {"output": None, "error": " wc: operand is missing"}
+        
+    try:
+        if params:
+            file = params[0]
+            with open(file, "r") as f:
+                text = f.read()
+            output = str(len(text.split()))
+            
+        else:
+            output = str(len(input_data.split()))
+    except Exception as err:
+        errors.append(f"wc: {err}")
+        output = None
+        
+    if redirect_file and output:
+        try:
+            with open(redirect_file, "w") as f:
+                f.write(output)
+            output = None
+        except Exception as err:
+            errors.append(f"wc: cannot write to {redirect_file}: {err}")
+            
+    error = "\n".join(errors) if errors else None
+    return {"output": output, "error": error}
+
+def history(parts):
+    params = parts.get("params", [])
+    redirect_file = parts.get("redirect", None)
+    errors = []
+    output = None
+    
+    try: 
+        result = subprocess.run("history",shell = True, capture_output = True, text = True)
+        output = result.stdout.strip()
+        if result.stderr:
+            errors.append(result.stderr.strip())
+    except Exception as err:
+        errors.append(f"history: {err}")
+        output = None
+            
+    if redirect_file and output:
+        try:
+            with open(redirect_file, "w") as f:
+                    f.write(output)
+            output = None
+        except Exception as err:
+            errors.append(f"history: cannot write to {redirect_file}: {err}")
+                
+    error = "\n".join(errors) if errors else None
+    return {"output": output, "error" : error}
+
+ def chmod(parts):
+        params = parts.get("params", [])
+        redirect_file = parts.get("redirect",None)
+        errors = []
+        output = None
+        
+        if not params or len(params) <2:
+            return {"output": None, "error": "chmod: missing mode/file"}
+            
+        m,f = params[:2]
+        try:
+            subprocess.run(["chmod", m, f])
+            output = f"permissions for {f} are set to {m}"
+        except Exception as err:
+            errors.append(f"chmod: {err}")
+            output = None
+            
+        if redirect_file and output:
+            try:
+                with open(redirect_file, "w") as f:
+                    f.write(output)
+                output = None
+            except Exception as err:
+                errors.append(f"chmod: cannot write to {redirect_file}: {err}")
+                
+        error = "\n".join(errors) if errors else None
+        return {"output": output, "error" : error}
+
+
+
+
+
+
+
+
 if __name__ == "__main__":
     cmd_list = parse_cmd("ls Assignments -lah | grep '.py' | wc -l > output")
     cmd = ""  # empty cmd variable
@@ -346,6 +491,27 @@ if __name__ == "__main__":
                     output = rm(command)
                     if output["output"] is None:
                         output["output"] = ""
+                elif command['cmd'] == 'cp':
+                    output = cp (command)
+                    if output["output"] is None:
+                        output["output"] = ""
+                elif command['cmd'] == 'grep':
+                    output = grep (command)
+                    if output["output"] is None:
+                        output["output"] = ""
+                elif command['cmd'] == 'wc':
+                    output = wc (command)
+                    if output["output"] is None:
+                        output["output"] = ""
+                elif command['cmd'] == 'history':
+                    output = history (command)
+                    if output["output"] is None:
+                        output["output"] = ""
+                elif command['cmd'] == 'chmod':
+                    output = chmod (command)
+                    if output["output"] is None:
+                        output["output"] = ""
+                
                 else:
                     output['error'] = 'Invalid Command'
                 if output['error']:
