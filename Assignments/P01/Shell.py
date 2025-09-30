@@ -12,7 +12,7 @@ import shutil
 from time import sleep
 from rich import print
 from getch import Getch
-from pathlib import path
+from pathlib import Path
 
 ##################################################################################
 ##################################################################################
@@ -23,19 +23,27 @@ prompt = "$"  # set default prompt
 
 def parse_cmd(cmd_input):
     command_list = []
-    cmds = cmd_input.split("|")
+    cmds = [c.strip() for c in cmd_input.split("|")]
+
     for cmd in cmds:
-        d = {"input":None,"cmd":None,"params":[],"flags":None, "redirect":None}
-        subparts = cmd.strip().split()
-        d["cmd"]= subparts[0]
-        for item in subparts[1:]:
-            if "-" in item:
-                d["flags"]=item[1:]
-            elif ">" in item:
-                d["redirect"]=item[1:]
+        d = {"input": None, "cmd": None, "params": [], "flags": None, "redirect": None}
+        parts = cmd.split()
+        i = 0
+        while i < len(parts):
+            part = parts[i]
+            if i == 0:
+                d["cmd"] = part
+            elif part.startswith("-") and len(part) > 1:
+                d["flags"] = part[1:]
+            elif part == ">":
+                if i + 1 < len(parts):
+                    d["redirect"] = parts[i + 1]
+                    i += 1
+                else:
+                    d["redirect"] = None
             else:
-                d['params'].append(item)
-            
+                d["params"].append(part)
+            i += 1
         command_list.append(d)
     return command_list
  
@@ -277,8 +285,8 @@ def cp(parts):
     
     s,d = params [:2]
     try:
-        content = path(s).read_bytes()
-        path(d).write_bytes(content)
+        content = Path(s).read_bytes()
+        Path(d).write_bytes(content)
         output = f"file has been copied {s} to {d}"
     
     except Exception as err:
@@ -288,37 +296,51 @@ def cp(parts):
     return {"output" : output, "error": error}
 
 def grep(parts):
-    params = parts.get ("params" , [])
-    redirect_file = parts.get ("redirect", None)
+    params = parts.get("params", [])
+    redirect_file = parts.get("redirect", None)
+    input_data = parts.get("input")  # from a pipe
     errors = []
-    output = None
-    if not params or len(params) <2:
-        return {"output": None , "error" : "grep requires a pattern to search for within the files"}
-        
+
+    if not params:
+        return {"output": None, "error": "grep: missing search string"}
+
     pattern = params[0]
-    files = params [1:]
-        
-    try:
-        cmd = ["grep","-lic", pattern, *files]
-        results = subprocess.run(cmd,capture_output = True, text = True)
-        output = results.stdout.strip()
-        if results.stderr:
-            errors.append(results.stderr.strip())
-                
-    except Exception as err:
-        errors.append(f"grep: {err}")
-        output = None
-                
+    files = params[1:]
+
+    matches = []
+
+    if input_data:
+        for line in input_data.splitlines():
+            if pattern in line:
+                matches.append(line.rstrip("\n"))
+
+    elif files:
+        for fname in files:
+            try:
+                with open(fname, "r") as f:
+                    for line in f:
+                        if pattern in line:
+                            matches.append(line.rstrip("\n"))
+            except FileNotFoundError:
+                errors.append(f"grep: {fname}: No such file")
+            except Exception as e:
+                errors.append(f"grep: {fname}: {e}")
+
+    else:
+        return {"output": None, "error": "grep: no input provided"}
+
+    output = "\n".join(matches) if matches else ""
+
     if redirect_file and output:
         try:
-            with open(redirect_file, 'w') as f:
+            with open(redirect_file, "w") as f:
                 f.write(output)
-                output = None
-        except Exception as err:
-            errors.append(f"grep: {err}")
-                
-        error = "\n".join(errors) if errors else None
-        return { "output": output, "error": error}
+            output = None
+        except Exception as e:
+            errors.append(f"grep: {e}")
+
+    error = "\n".join(errors) if errors else None
+    return {"output": output, "error": error}
 
 
 def wc(parts):
@@ -445,53 +467,43 @@ def sorting(parts):
     return {"output": output, "error" : error} 
        
         
-def history_expansion(parts):
-    params = parts.get("params", [])
-    redirect_file = parts.get("redirect",None)
-    errors = []
-    output = None
-        
-    if not params:
-       return {"output": None, "error": "history_expansion: command missing"}
-            
-    cmd_num = params[0]
-        
+def history_expansion(parts, cmd_history):
+    if not parts.get("params"):
+        return {"output": None, "error": "No history index specified"}
+
     try:
-       result = subprocess.run(f"!{cmd_num}", shell = True, capture_output = True, text =True)
-       output = result.stdout.strip()
-       if result.stderr:
-          errors.append(result.stderr.strip())
-    except Exception as err:
-       errors.append(f"history_expansion: {err}")
-       output = None
-                
-    if redirect_file and output:
-       try:
-          with open(redirect_file, "w") as f:
-                    f.write(output)
-          output = None
-       except Exception as err:
-          errors.append(f"history_expansion: cannot write to {redirect_file}: {err}")
-                
-    error = "\n".join(errors) if errors else None
-    return {"output": output, "error" : error}
+        index = int(parts["params"][0]) - 1  # 1-based indexing
+        if 0 <= index < len(cmd_history):
+            prev_cmd = cmd_history[index]
+            command_list = parse_cmd(prev_cmd)
+            return {"output": prev_cmd, "error": None, "execute": command_list}
+        else:
+            return {"output": None, "error": "History index out of range"}
+    except ValueError:
+        return {"output": None, "error": "Invalid history index"}
 
 
 def pwd(parts):
-    
+    output = None
+    error = None
     flags = parts.get("flags", "") or ""
     params = parts.get("params") or []
     
     #current working directory
-    current_dicty = os.get_CWD()
+    try:
+        output = os.getcwd()
+    except Exception as err:
+        error = f"pwd:{err}"
 
-    return current_dicty
+    return {"output": output, "error" : error}
 
 
-def mv(**kwargs):
+def mv(parts):
+    output = None
+    error = None
     #Doesn't handle flags but handles params
-    flags = kwargs.get("flags")
-    params = kwargs.get("params")
+    flags = parts.get("flags")
+    params = parts.get("params")
 
     if flags:
         return "This function does not accept flags."
@@ -517,227 +529,251 @@ def mv(**kwargs):
         #Moving the file from src to dest
         shutil.move(source_path, dest_path) #It automatically overwrites the file if destination is an existing 
                                          #file or if destination is a directory it moves the file to the directory 
-        return f"Moved '{source_file}' to '{dest_path}'."
+        output = f"Moved '{source_file}' to '{dest_path}'."
     except Exception as e:
-        return f"Error moving file: {str(e)}"
+        error = f"Error moving file: {str(e)}"
+    return {"output": output, "error": error}
     
 
-def cd(**kwargs):
-    current_dicty = get_CWD()
-    params = kwargs.get("params")
+def cd(parts):
+    """
+    Change directory. Supports:
+    - cd (no args) → home directory
+    - cd ..        → parent directory
+    - cd /         → root directory
+    - cd <path>    → specific path
+    """
+    params = parts.get("params") or []
 
+    # If no param → go to home
     if not params:
-        return "No directory specified."
-
-    target = params[0]
-
-    #Uses the path if it's absolute. If it's not, it joins with the current dir
-    if os.path.isabs(target):
-        new_path = target
+        target = os.path.expanduser("~")
     else:
-        new_path = os.path.join(current_dicty, target)
+        target = params[0]
 
-    #Checking if directory exists in real file system
-    if os.path.isdir(new_path):
-        modify_CWD(new_path)
-        return f"Changed directory to: {new_path}"
+        if target == "/":  # go root
+            target = "/"
+        elif target == "..":  # go parent
+            target = os.path.dirname(os.getcwd())
+        elif not os.path.isabs(target):  # relative path
+            target = os.path.join(os.getcwd(), target)
+
+    if os.path.isdir(target):
+        try:
+            os.chdir(target)
+            return {"output": f"Changed directory to: {target}", "error": None}
+        except Exception as err:
+            return {"output": None, "error": f"cd: {err}"}
     else:
-        return "Directory does not exist."
+        return {"output": None, "error": f"cd: no such directory: {target}"}
 
 
-def cd_tld(**kwargs):
-    current = os.get_CWD()
-    default = "/"  #Change this if your home dir is different
 
-    params = kwargs.get("params")
+def mkdir(parts):
+    output = None
+    error = None
+    params = parts.get("params")
 
-    if current == default:
-        return "You are already in the root directory."
-
-    os.set_CWD(default)
-    return f"Moved to home directory: {default}"
-
-
-def cd_dd(**kwargs):
-    #Gets the current working directory
-    current_dicty = os.get_CWD()
-    default = "/"  #Root directory
-    
-    if current_dicty == default:
-        return "You are already in the root directory."
-
-    #Go up one directory
-    new_path = os.path.dirname(current_dicty)
-
-    #Confirming that the directory exists
-    if not os.path.isdir(new_path):
-        return f"Directory does not exist: {new_path}"
-
-    #Change directory
-    os.set_CWD(new_path)
-    return f"Moved up to: {new_path}"
-
-
-def mkdir(**kwargs):
-    #Getting the list of parameters passed by the user
-    params = kwargs.get("params")
-
-    #Checking if dir name was entered
     if not params or not params[0]:
-        return "No directory name specified."
-
-    #Setting new dir name with 1st param
+        error = "No directory name specified."
     dicty_name = params[0]
 
     try:
         os.mkdir(dicty_name)
-        return f"Directory '{dicty_name}' created successfully."
+        output = f"Directory '{dicty_name}' created successfully."
     except FileExistsError:
-        return f"Directory '{dicty_name}' already exists."
+        error = f"Directory '{dicty_name}' already exists."
+    return {"output": output, "error": error}
+
+def count(parts):
+    """
+    Custom CLI command:
+    count -l -> count lines
+    count -w -> count words
+    count -c -> count characters
+    Can take piped input or file names in params
+    """
+    flags = parts.get("flags", "") or ""
+    params = parts.get("params", [])
+    input_data = parts.get("input")
+    redirect_file = parts.get("redirect", None)
+    errors = []
+
+    count_lines = 'l' in flags
+    count_words = 'w' in flags
+    count_chars = 'c' in flags
+
+    if not (count_lines or count_words or count_chars):
+        count_lines = True
+
+    text_data = ""
+    if input_data:
+        text_data = input_data
+    elif params:
+        for fname in params:
+            try:
+                with open(fname, "r") as f:
+                    text_data += f.read() + "\n"
+            except Exception as e:
+                errors.append(f"count: {fname}: {e}")
+    else:
+        return {"output": None, "error": "count: no input provided"}
+    output_parts = []
+    if count_lines:
+        output_parts.append(f"Lines: {len(text_data.splitlines())}")
+    if count_words:
+        output_parts.append(f"Words: {len(text_data.split().copy())}")
+    if count_chars:
+        output_parts.append(f"Chars: {len(text_data)}")
+
+    output = " | ".join(output_parts)
+
+    if redirect_file:
+        try:
+            with open(redirect_file, "w") as f:
+                f.write(output)
+            output = None
+        except Exception as e:
+            errors.append(f"count: {e}")
+
+    error = "\n".join(errors) if errors else None
+    return {"output": output, "error": error}
 
 
 if __name__ == "__main__":
-    cmd_list = parse_cmd("ls Assignments -lah | grep '.py' | wc -l > output")
-    cmd = ""  # empty cmd variable
+    cmd_history = []
+    history_index = 0
+    cmd = ""
 
-    print_cmd(cmd)  # print to terminal
+    print_cmd(cmd)
 
-    while True:  # loop forever
+    while True:
+        char = getch()
 
-        char = getch()  # read a character (but don't print)
-
-        if char == "\x03" or cmd == "exit":  # ctrl-c
+        # Ctrl-C or 'exit'
+        if char == "\x03" or cmd.strip() == "exit":
             raise SystemExit("Bye.")
 
-        elif char == "\x7f":  # back space pressed
+        # Backspace
+        elif char == "\x7f":
             cmd = cmd[:-1]
             print_cmd(cmd)
 
-        elif char == "\x1b":  # arrow key pressed
-            null = getch()  # waste a character
-            direction = getch()  # grab the direction
-
-            if direction in "A":  # up arrow pressed
-                # get the PREVIOUS command from your history (if there is one)
-                # prints out 'up' then erases it (just to show something)
-                cmd += "\u2191"
+        # Arrow keys
+        elif char == "\x1b":
+            getch()  # skip '['
+            direction = getch()
+            if direction == "A":  # Up
+                if cmd_history and history_index > 0:
+                    history_index -= 1
+                    cmd = cmd_history[history_index]
+                    print_cmd(cmd)
+            elif direction == "B":  # Down
+                if cmd_history and history_index < len(cmd_history) - 1:
+                    history_index += 1
+                    cmd = cmd_history[history_index]
+                else:
+                    history_index = len(cmd_history)
+                    cmd = ""
                 print_cmd(cmd)
-                sleep(0.3)
-                # cmd = cmd[:-1]
+            # Left/Right arrows can be ignored for now
 
-            if direction in "B":  # down arrow pressed
-                # get the NEXT command from history (if there is one)
-                # prints out 'down' then erases it (just to show something)
-                cmd += "\u2193"
+        # Enter pressed
+        elif char == "\r":
+            print()  # move to next line
+            if not cmd.strip():
+                cmd = ""
                 print_cmd(cmd)
-                sleep(0.3)
-                # cmd = cmd[:-1]
+                continue
 
-            if direction in "C":  # right arrow pressed
-                # move the cursor to the right on your command prompt line
-                # prints out 'right' then erases it (just to show something)
-                cmd += "\u2192"
-                print_cmd(cmd)
-                sleep(0.3)
-                # cmd = cmd[:-1]
+            # Save to history
+            cmd_history.append(cmd)
+            history_index = len(cmd_history)
 
-            if direction in "D":  # left arrow pressed
-                # moves the cursor to the left on your command prompt line
-                # prints out 'left' then erases it (just to show something)
-                cmd += "\u2190"
-                print_cmd(cmd)
-                sleep(0.3)
-                # cmd = cmd[:-1]
-
-        elif char in "\r":  # return pressed
-
-            # This 'elif' simulates something "happening" after pressing return
-            cmd_list.append(cmd)
+            # Parse commands
             command_list = parse_cmd(cmd)
-            cmd = "Executing command...."  #
+            piped_input = None
+            final_output = None
+
             for command in command_list:
-                print(command)
-                if command['cmd'] == 'ls':
-                    output = ls(command)
-                elif command['cmd'] == 'cat':
-                    output = cat(command)
-                elif command['cmd'] == 'tail':
-                    output = tail(command)
-                elif command['cmd'] == 'head':
-                    output = head(command)
-                elif command['cmd'] == 'less':
-                    output = less(command)
-                elif command['cmd'] == 'rm':
-                    output = rm(command)
-                    if output["output"] is None:
-                        output["output"] = ""
-                elif command['cmd'] == 'cp':
-                    output = cp (command)
-                    if output["output"] is None:
-                        output["output"] = ""
-                elif command['cmd'] == 'grep':
-                    output = grep (command)
-                    if output["output"] is None:
-                        output["output"] = ""
-                elif command['cmd'] == 'wc':
-                    output = wc (command)
-                    if output["output"] is None:
-                        output["output"] = ""
-                elif command['cmd'] == 'history':
-                    output = history (command)
-                    if output["output"] is None:
-                        output["output"] = ""
-                elif command['cmd'] == 'chmod':
-                    output = chmod (command)
-                    if output["output"] is None:
-                        output["output"] = ""
-                elif command['cmd'] == 'sort':
-                    output = sorting (command)
-                    if output["output"] is None:
-                        output["output"] = ""
-                elif command['cmd'] == '!x':
-                    output = history_expansion (command)
-                    if output["output"] is None:
-                        output["output"] = ""                
-                elif command['cmd'] == 'pwd':
-                    output = pwd (command)
-                    if output["output"] is None:
-                        output["output"] = ""                
-                elif command['cmd'] == 'mv':
-                    output = mv (command)
-                    if output["output"] is None:
-                        output["output"] = ""
-                elif command['cmd'] == 'cd':
-                    output = cd (command)
-                    if output["output"] is None:
-                        output["output"] = ""                
-                elif command['cmd'] == 'cd~':
-                    output = cd_tld (command)
-                    if output["output"] is None:
-                        output["output"] = ""
-                elif command['cmd'] == 'cd..':
-                    output = cd_dd (command)
-                    if output["output"] is None:
-                        output["output"] = ""
-                elif command['cmd'] == 'mkdir':
-                    output = mkdir (command)
-                    if output["output"] is None:
-                        output["output"] = ""
+                if piped_input is not None:
+                    command["input"] = piped_input
+
+                c = command['cmd']
+                try:
+                    if c == "ls":
+                        output = ls(command)
+                    elif c == "cat":
+                        output = cat(command)
+                    elif c == "grep":
+                        output = grep(command)
+                    elif c == "tail":
+                        output = tail(command)
+                    elif c == "head":
+                        output = head(command)
+                    elif c == "less":
+                        output = less(command)
+                    elif c == "rm":
+                        output = rm(command)
+                    elif c == "cp":
+                        output = cp(command)
+                    elif c == "pwd":
+                        output = pwd(command)
+                    elif c == "mv":
+                        output = mv(command)
+                    elif c == "cd":
+                        output = cd(command)
+                    elif c == "mkdir":
+                        output = mkdir(command)
+                    elif c == "history":
+                        hist_out = "\n".join(f"{i + 1} {c}" for i, c in enumerate(cmd_history))
+                        output = {"output": hist_out, "error": None}
+                    elif c == "!x":
+                        output = history_expansion(command, cmd_history)
+                        # If executing previous command
+                        if output.get("execute"):
+                            command_list = output["execute"] + command_list[1:]
+                            piped_input = None
+                            break
+                    elif c == "chmod":
+                        output = chmod(command)
+                    elif c == "sort":
+                        output = sorting(command)
+                    elif c == 'wc':
+                        output = wc(command)
+                    elif c == 'count':
+                        output = count(command)
+                    else:
+                        output = {"output": None, "error": f"{c}: command not found"}
+                except Exception as e:
+                    output = {"output": None, "error": str(e)}
+
+                # Handle errors
+                if output["error"]:
+                    print(output["error"])
+                    piped_input = None
+                    final_output = None
                 else:
-                    output['error'] = 'Invalid Command'
-                if output['error']:
-                    print(output['error'])
-                else:
-                    print(output['output'])
-            sleep(1)
+                    piped_input = output["output"]
+                    final_output = output
 
-            ## YOUR CODE HERE
-            ## Parse the command
-            ## Figure out what your executing like finding pipes and redirects
+            redirect_file = command_list[-1].get("redirect")
+            if redirect_file and final_output and final_output.get("output"):
+                try:
+                    with open(redirect_file, "w") as f:
+                        f.write(final_output["output"])
+                    final_output["output"] = None
+                except Exception as e:
+                    print(f"Error writing to file {redirect_file}: {e}")
 
-            cmd = ""  # reset command to nothing (since we just executed it)
+            # Print final output if not redirected
+            if final_output and final_output.get("output"):
+                print(final_output["output"])
 
-            print_cmd(cmd)  # now print empty cmd prompt
+            cmd = ""
+            print_cmd(cmd)
+
+        # Regular character input
         else:
-            cmd += char  # add typed character to our "cmd"
-            print_cmd(cmd)  # print the cmd out
+            cmd += char
+            print_cmd(cmd)
