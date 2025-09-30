@@ -1,0 +1,19 @@
+mkdir bananas myfile1  
+touch bananas/myfile2.txt	
+echo “Saying hi to the students of our operating systems class” > bananas/myfile2.txt
+ls bananas 
+cp bananas/myfile2.txt myfile1/copiedfile2
+
+ls -l bananas/myfile2.txt
+Chmod 777 bananas/myfile2.txt
+ls -l bananas/myfile2.txt
+
+cat bacon.txt | sort
+
+wc -w myfile2.txt
+
+grep -lic students myfile2.txt copiedmf2.txt
+
+history 
+
+!x
