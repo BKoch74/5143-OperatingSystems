@@ -410,9 +410,71 @@ def history(parts):
         return {"output": output, "error" : error}
 
 
+ def sorting(parts):
+        params = parts.get("params", [])
+        input_data = parts.get("input", None)
+        redirect_file = parts.get("redirect",None)
+        errors = []
+        contents = []
+        output = None
+        
+        if input_data:
+            contents.extend(input_data.splitlines())
+            
+        for file in params:
+            try:
+                with open(file, "r") as f:
+                    contents.extend(f.readlines())
+            except Exception as err:
+                errors.append(f"sort:{file}: {err}")
+                
+        try:
+            output = "\n".join(sorted([line.strip() for line in contents]))
+        except Exception as err:
+            errors.append(f"sort: {err}")
+            output = None
+                
+        if redirect_file and output:
+            try:
+                with open(redirect_file, "w") as f:
+                    f.write(output)
+                output = None
+            except Exception as err:
+                errors.append(f"sort: cannot write to {redirect_file}: {err}")
+                    
+        error = "\n".join(errors) if errors else None
+        return {"output": output, "error" : error} 
 
-
-
+def history_expansion(parts):
+        params = parts.get("params", [])
+        redirect_file = parts.get("redirect",None)
+        errors = []
+        output = None
+        
+        if not params:
+            return {"output": None, "error": "history_expansion: command missing"}
+            
+        cmd_num = params[0]
+        
+        try:
+            result = subprocess.run(f"!{cmd_num}", shell = True, capture_output = True, text =True)
+            output = result.stdout.strip()
+            if result.stderr:
+                errors.append(result.stderr.strip())
+        except Exception as err:
+                errors.append(f"history_expansion: {err}")
+                output = None
+                
+        if redirect_file and output:
+            try:
+                with open(redirect_file, "w") as f:
+                    f.write(output)
+                output = None
+            except Exception as err:
+                errors.append(f"history_expansion: cannot write to {redirect_file}: {err}")
+                
+        error = "\n".join(errors) if errors else None
+        return {"output": output, "error" : error}
 
 
 
@@ -511,7 +573,14 @@ if __name__ == "__main__":
                     output = chmod (command)
                     if output["output"] is None:
                         output["output"] = ""
-                
+                elif command['cmd'] == 'sort':
+                    output = sorting (command)
+                    if output["output"] is None:
+                        output["output"] = ""
+                elif command['cmd'] == '!x':
+                    output = history_expansion (command)
+                    if output["output"] is None:
+                        output["output"] = ""
                 else:
                     output['error'] = 'Invalid Command'
                 if output['error']:
