@@ -8,6 +8,7 @@ This file is about capturing the user input so that you can mimic shell behavior
 import os
 import sys
 import subprocess
+import shutil
 from time import sleep
 from rich import print
 from getch import Getch
@@ -478,6 +479,124 @@ def history_expansion(parts):
     return {"output": output, "error" : error}
 
 
+def pwd(parts):
+    
+    flags = parts.get("flags", "") or ""
+    params = parts.get("params") or []
+    
+    #current working directory
+    current_dicty = os.get_CWD()
+
+    return current_dicty
+
+
+def mv(**kwargs):
+    #Doesn't handle flags but handles params
+    flags = kwargs.get("flags")
+    params = kwargs.get("params")
+
+    if flags:
+        return "This function does not accept flags."
+
+    if not params or len(params) < 2:
+        return "Usage: mv <source> <destination>"
+
+    source_path = params[0]
+    dest_path = params[1]
+
+    #Extracting file and directory names to keep tne path logic
+    source_parts = source_path.split('/')
+    source_file = source_parts[-1]
+
+    dest_parts = dest_path.split('/')
+    dest_file = dest_parts[-1]
+
+    #Checking if the src file exists
+    if not os.path.exists(source_path):
+        return f"Source file does not exist: {source_path}"
+
+    try:
+        #Moving the file from src to dest
+        shutil.move(source_path, dest_path) #It automatically overwrites the file if destination is an existing 
+                                         #file or if destination is a directory it moves the file to the directory 
+        return f"Moved '{source_file}' to '{dest_path}'."
+    except Exception as e:
+        return f"Error moving file: {str(e)}"
+    
+
+def cd(**kwargs):
+    current_dicty = get_CWD()
+    params = kwargs.get("params")
+
+    if not params:
+        return "No directory specified."
+
+    target = params[0]
+
+    #Uses the path if it's absolute. If it's not, it joins with the current dir
+    if os.path.isabs(target):
+        new_path = target
+    else:
+        new_path = os.path.join(current_dicty, target)
+
+    #Checking if directory exists in real file system
+    if os.path.isdir(new_path):
+        modify_CWD(new_path)
+        return f"Changed directory to: {new_path}"
+    else:
+        return "Directory does not exist."
+
+
+def cd_tld(**kwargs):
+    current = os.get_CWD()
+    default = "/"  #Change this if your home dir is different
+
+    params = kwargs.get("params")
+
+    if current == default:
+        return "You are already in the root directory."
+
+    os.set_CWD(default)
+    return f"Moved to home directory: {default}"
+
+
+def cd_dd(**kwargs):
+    #Gets the current working directory
+    current_dicty = os.get_CWD()
+    default = "/"  #Root directory
+    
+    if current_dicty == default:
+        return "You are already in the root directory."
+
+    #Go up one directory
+    new_path = os.path.dirname(current_dicty)
+
+    #Confirming that the directory exists
+    if not os.path.isdir(new_path):
+        return f"Directory does not exist: {new_path}"
+
+    #Change directory
+    os.set_CWD(new_path)
+    return f"Moved up to: {new_path}"
+
+
+def mkdir(**kwargs):
+    #Getting the list of parameters passed by the user
+    params = kwargs.get("params")
+
+    #Checking if dir name was entered
+    if not params or not params[0]:
+        return "No directory name specified."
+
+    #Setting new dir name with 1st param
+    dicty_name = params[0]
+
+    try:
+        os.mkdir(dicty_name)
+        return f"Directory '{dicty_name}' created successfully."
+    except FileExistsError:
+        return f"Directory '{dicty_name}' already exists."
+
 
 if __name__ == "__main__":
     cmd_list = parse_cmd("ls Assignments -lah | grep '.py' | wc -l > output")
@@ -580,6 +699,30 @@ if __name__ == "__main__":
                         output["output"] = ""
                 elif command['cmd'] == '!x':
                     output = history_expansion (command)
+                    if output["output"] is None:
+                        output["output"] = ""                
+                elif command['cmd'] == 'pwd':
+                    output = pwd (command)
+                    if output["output"] is None:
+                        output["output"] = ""                
+                elif command['cmd'] == 'mv':
+                    output = mv (command)
+                    if output["output"] is None:
+                        output["output"] = ""
+                elif command['cmd'] == 'cd':
+                    output = cd (command)
+                    if output["output"] is None:
+                        output["output"] = ""                
+                elif command['cmd'] == 'cd~':
+                    output = cd_tld (command)
+                    if output["output"] is None:
+                        output["output"] = ""
+                elif command['cmd'] == 'cd..':
+                    output = cd_dd (command)
+                    if output["output"] is None:
+                        output["output"] = ""
+                elif command['cmd'] == 'mkdir':
+                    output = mkdir (command)
                     if output["output"] is None:
                         output["output"] = ""
                 else:
