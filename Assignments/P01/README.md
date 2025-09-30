@@ -26,7 +26,7 @@ Run the `shell.py` file and use the following commands.
 | `cd..`    | Changes the current directory to one directory up             |   Mae    |
 | `cd~`     | Changes the current directory to the user's home directory    |   Mae    |
 | `mkdir`   | Creates a new directory    |   Mae    |
-| `sysCheck`| Displays the system health (command of choice)             |   Mae    |
+| `sysCheck/ESC`| Displays the system health/ESC to exit terminal (command of choice)             |   Mae    |
 | `cp`      | Copy files and directories      |  Aretha  |
 | `grep`    | Search for specific patterns    |  Aretha  |
 | `wc`      | Count lines, words, bytes       |  Aretha  |
@@ -36,4 +36,4 @@ Run the `shell.py` file and use the following commands.
 | `!x`      | Print expanded history          |  Aretha  |
 
 ## Non-Working Components:
-Command of choice. Still working on it.
+Command of choice: We're still working on it.
