@@ -12,6 +12,7 @@ import shutil
 import time
 import pwd
 import readline
+import stat
 from rich import print
 from getch import Getch
 from pathlib import Path
@@ -50,6 +51,7 @@ def parse_cmd(cmd_input):
                     if i + 1 < len(parts):
                         d["flags"] = f"{part[1:]}{parts[i + 1]}"
                         i += 1
+                    else:
                         d["flags"] = part[1:]
                 else:
                     d["flags"] = part[1:]
@@ -322,13 +324,13 @@ def head(parts):
 
 
 def tail(parts):
-    params = parts.get("params", [])
-    flags = str(parts.get("flags") or "")
-    flag_values = parts.get("flag_values", {})
-    input_data = parts.get("input", None)
-    redirect_file = parts.get("redirect", None)
+    flags_str = str(parts.get("flags") or "")
+    flag_values = parts.get("flag_values") or {}
+    params = list(parts.get("params") or [])
+    input_data = parts.get("input")
+    redirect_file = parts.get("redirect") or None
 
-    if "h" in flags or "--help" in params:
+    if "h" in flags_str or "--help" in params:
         help_text = (
             "tail: print the last 10 lines of each FILE to standard output.\n\n"
             "Usage:\n"
@@ -340,41 +342,86 @@ def tail(parts):
         )
         return {"output": help_text, "error": None}
 
-    n = 10
-    if "n" in flag_values:
+    def parse_int(s):
         try:
-            n = int(flag_values["n"])
-            if n < 0:
-                return {"output": None, "error": f"tail: invalid number of lines: {flag_values['n']}"}
-        except ValueError:
+            return int(s)
+        except Exception:
+            return None
+
+    n = 10
+
+    if "n" in flag_values:
+        val = parse_int(flag_values["n"])
+        if val is None or val < 0:
             return {"output": None, "error": f"tail: invalid number of lines: {flag_values['n']}"}
+        n = val
+    else:
+        found_num = None
+        s = flags_str
+        idx = s.find("n")
+        if idx != -1:
+            j = idx + 1
+            digits = ""
+            while j < len(s) and s[j].isdigit():
+                digits += s[j]
+                j += 1
+            if digits:
+                val = parse_int(digits)
+                if val is None or val < 0:
+                    return {"output": None, "error": f"tail: invalid number of lines: {digits}"}
+                n = val
+                found_num = True
+
+        if not found_num and "n" in s:
+            for i, tok in enumerate(params):
+                if isinstance(tok, str) and tok.lstrip("+-").isdigit():
+                    val = parse_int(tok)
+                    if val is not None:
+                        n = val
+                        params.pop(i)
+                        found_num = True
+                        break
+            if not found_num:
+                return {"output": None, "error": f"tail: option requires an argument -- 'n'"}
+
+    if n < 0:
+        return {"output": None, "error": f"tail: invalid number of lines: {n}"}
 
     output_lines = []
     errors = []
 
-    if input_data:
+    if input_data is not None:
         lines = input_data.splitlines()
-        output_lines.extend(lines[-n:])
-    elif params:  # files
+        output_lines.extend(lines[-n:] if n > 0 else [])
+    elif params:
         for fname in params:
             try:
-                with open(fname, "r") as f:
-                    lines = f.readlines()
-                    if len(params) > 1:
-                        output_lines.append(f"==> {fname} <==")
-                    output_lines.extend([line.rstrip("\n") for line in lines[-n:]])
+                if fname == "-":
+                    if input_data is not None:
+                        lines = input_data.splitlines()
+                    else:
+                        errors.append(f"tail: cannot open '{fname}' for reading: No such file")
+                        continue
+                else:
+                    with open(fname, "r", encoding="utf-8", errors="replace") as f:
+                        lines = f.read().splitlines()
+                if len(params) > 1:
+                    output_lines.append(f"==> {fname} <==")
+                output_lines.extend(lines[-n:] if n > 0 else [])
             except FileNotFoundError:
                 errors.append(f"tail: cannot open '{fname}' for reading: No such file")
+            except PermissionError:
+                errors.append(f"tail: cannot open '{fname}' for reading: Permission denied")
             except Exception as e:
                 errors.append(f"tail: {fname}: {e}")
     else:
-        return {"output": None, "error": "tail: no input provided"}
+        return {"output": None, "error": "tail: missing input"}
 
     output = "\n".join(output_lines)
 
     if redirect_file and output:
         try:
-            with open(redirect_file, "w") as f:
+            with open(redirect_file, "w", encoding="utf-8") as f:
                 f.write(output)
             output = None
         except Exception as e:
