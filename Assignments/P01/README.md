@@ -36,11 +36,10 @@ Run the `shell.py` file and use the following commands.
 | `!x`      | Print expanded history          |  Aretha  |
 
 ## Difficulties/Challenges:
-When we joined all our commands we had some errors so that had some tweaking to do.
-
-We ran into an indentation error.
-
-Initially, we wanted to go with a command called sysCheck that would display the system health but ran into some problems with it. 
+1) Implementing piping was our biggest challenge.  
+2) When we joined all our commands we had some errors so that had some tweaking to do.
+3) We ran into an indentation error.
+4) Initially, we wanted to go with a command called sysCheck that would display the system health but ran into some problems with it. 
 
 ## Non-Working Components:
 N/A
