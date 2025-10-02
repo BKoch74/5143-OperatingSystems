@@ -46,14 +46,14 @@ def parse_cmd(cmd_input):
             if i == 0:
                 d["cmd"] = part
             elif part.startswith("-") and len(part) > 1:
-				if part[1:] in ["n"]:  # flags that take an argument
+                if part[1:] in ["n"]:  # flags that take an argument
                     if i + 1 < len(parts):
                         d["flags"].add(f"{part[1:]}{parts[i + 1]}")
                         i += 1
                     else:
                         d["flags"].add(part[1:])
-				else:
-					for c in part[1:]: #store individual characters in the flag 
+                else:
+                    for c in part[1:]: #store individual characters in the flag 
                    		d["flags"].add(c)
             elif part == ">":
                 if i + 1 < len(parts):
@@ -485,7 +485,7 @@ def grep(parts):
     input_data = parts.get("input")  # from a pipe
     errors = []
 
-    if flags and flags[0] == "help" or flags[0] == 'h':
+    if "h" in flags or "help" in flags:
         help_text = (
             "Usage: grep [PATTERN] [FILE...]\n"
             "Search for PATTERN in each FILE or from piped input.\n\n"
@@ -498,20 +498,20 @@ def grep(parts):
             "  grep 'error' *.log > output   Save matching lines to output file\n"
         )
         return {"output": help_text, "error": None}
-    if not params:
+    if not params: #if no string is given, an error will be sent 
         return {"output": None, "error": "grep: missing search string"}
 
-    pattern = params[0]
+    pattern = params[0] #search pattern and files
     files = params[1:]
 
-    matches = []
+    matches = [] #store matching lines
 
     if input_data:
         for line in input_data.splitlines():
             if pattern in line:
                 matches.append(line.rstrip("\n"))
 
-    elif files:
+    elif files: #scans lines in file
         for fname in files:
             try:
                 with open(fname, "r") as f:
@@ -542,6 +542,7 @@ def grep(parts):
 
 def wc(parts):
     params = parts.get ("params", [])
+    flags = parts.get("flags",set()) or set()
     input_data = parts.get ("input", None)
     redirect_file = parts.get("redirect", None)
     errors = []
@@ -551,28 +552,46 @@ def wc(parts):
         return {"output": None, "error": " wc: operand is missing"}
         
     try:
+        text = ""
         if params:
-            file = params[0]
-            with open(file, "r") as f:
-                text = f.read()
-            output = str(len(text.split()))
-            
+            results = []
+            for filename in params:
+                try:
+                    with open(filename, "r") as f:
+                        text = f.read()
+                    counts = get_counts(text, flags)
+                    results.append(f"{counts} {filename}")
+                except FileNotFoundError:
+                    errors.append(f"wc: {filename}: file not found")
+                except Exception as e:
+                    errors.append(f"wc: {filename}: {e}")
+            output= "\n".join(results)
         else:
-            output = str(len(input_data.split()))
+            counts = get_counts(input_data, flags)
+            output = str(counts)
     except Exception as err:
         errors.append(f"wc: {err}")
         output = None
-        
-    if redirect_file and output:
-        try:
-            with open(redirect_file, "w") as f:
-                f.write(output)
-            output = None
-        except Exception as err:
-            errors.append(f"wc: cannot write to {redirect_file}: {err}")
-            
     error = "\n".join(errors) if errors else None
     return {"output": output, "error": error}
+
+
+def get_counts(text, flags):
+    lines = text.splitlines()
+    words = text.split()
+    chars = text
+    
+    if not flags:
+        return str(len(words))
+        
+    results = []
+    if "w" in flags:
+        results.append(str(len(words)))
+    if "l" in flags:
+        results.append(str(len(lines)))
+    if "c" in flags:
+        results.append(str(len(chars)))
+    return " ".join(results)
 
 def history(parts):
     params = parts.get("params", [])
@@ -927,13 +946,17 @@ if __name__ == "__main__":
                     elif c == "history":
                         hist_out = "\n".join(f"{i + 1} {c}" for i, c in enumerate(cmd_history))
                         output = {"output": hist_out, "error": None}
-                    elif c == "!x":
-                        output = history_expansion(command, cmd_history)
-                        # If executing previous command
+                    elif c.startswith("!"):
+                        output = history_expansion({"params": [c[1:]]},cmd_history)
                         if output.get("execute"):
                             command_list = output["execute"] + command_list[1:]
                             piped_input = None
                             break
+						elif output.get("error"):
+							print(output["error"])
+							piped_input = None
+							final_output = None
+							break
                     elif c == "chmod":
                         output = chmod(command)
                     elif c == "sort":
