@@ -35,7 +35,14 @@ def parse_cmd(cmd_input):
             if i == 0:
                 d["cmd"] = part
             elif part.startswith("-") and len(part) > 1:
-                d["flags"] = part[1:]
+                if part[1:] in ["n"]:  # flags that take an argument
+                    if i + 1 < len(parts):
+                        d["flags"] = f"{part[1:]}{parts[i + 1]}"
+                        i += 1
+                    else:
+                        d["flags"] = part[1:]
+                else:
+                    d["flags"] = part[1:]
             elif part == ">":
                 if i + 1 < len(parts):
                     d["redirect"] = parts[i + 1]
@@ -137,16 +144,45 @@ def rm(parts):
     flags = parts.get("flags") or ""
     output, error = None, None
 
+    help_text = (
+        "Usage: rm [OPTION]... FILE...\n"
+        "Remove (unlink) the FILE(s).\n\n"
+        "  -r, --recursive  remove directories and their contents recursively\n"
+        "  -f, --force      ignore nonexistent files, never prompt, ignore write-only permissions\n"
+        "  -h, --help       display this help message\n"
+    )
+
+    # Handle help
+    if "h" in flags or "--help" in params:
+        return {"output": help_text, "error": None}
+
+    force = "f" in flags or "--force" in params
+    recursive = "r" in flags or "--recursive" in params
+
     def remove_path(path):
+        if not os.path.exists(path):
+            if not force:
+                return f"rm: cannot remove '{path}': No such file or directory"
+            return None
+
         if os.path.isfile(path) or os.path.islink(path):
             try:
+                if not force:
+                    if not os.access(path, os.W_OK):
+                        confirm = input(f"rm: remove write-protected file '{path}'? [y/N] ")
+                        if confirm.lower() != "y":
+                            return None
+                if force:
+                    os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
                 os.remove(path)
             except Exception as e:
                 return f"rm: cannot remove '{path}': {e}"
+
         elif os.path.isdir(path):
-            if "r" not in flags:
+            if not recursive:
                 return f"rm: cannot remove '{path}': Is a directory"
             try:
+                # Recursively delete contents
                 for entry in os.listdir(path):
                     entry_path = os.path.join(path, entry)
                     err = remove_path(entry_path)
@@ -155,13 +191,9 @@ def rm(parts):
                 os.rmdir(path)
             except Exception as e:
                 return f"rm: cannot remove '{path}': {e}"
-        return None
 
+        return None
     for path in params:
-        if not os.path.exists(path):
-            if "f" not in flags:
-                error = f"rm: cannot remove '{path}': No such file or directory"
-            continue
         err = remove_path(path)
         if err:
             error = err
@@ -173,26 +205,39 @@ def cat(parts):
     params = parts.get("params", [])
     input_data = parts.get("input", None)
     redirect_file = parts.get("redirect", None)
+    flags = parts.get("flags", "") or ""
 
-    if not params and not input_data:
-        return {"output": None, "error": "cat: missing operand"}
-
+    if "h" in flags or "--help" in params:
+        help_text = (
+            "Usage: cat [FILE]...\n"
+            "Concatenate FILE(s) to standard output.\n"
+            "If no FILE is given, reads from stdin (piped input).\n"
+        )
+        return {"output": help_text, "error": None}
     contents = []
     errors = []
 
     if input_data:
         contents.append(input_data)
-
     for file in params:
+        if file == "-":
+            if input_data:
+                contents.append(input_data)
+            continue
         try:
             with open(file, "r") as f:
                 contents.append(f.read())
+        except FileNotFoundError:
+            errors.append(f"cat: {file}: No such file or directory")
+        except PermissionError:
+            errors.append(f"cat: {file}: Permission denied")
         except Exception as e:
             errors.append(f"cat: {file}: {e}")
 
-    output = "\n".join(contents)
+    output = "\n".join(contents) if contents else None
     error = "\n".join(errors) if errors else None
-    if redirect_file:
+
+    if redirect_file and output is not None:
         try:
             with open(redirect_file, "w") as f:
                 f.write(output)
@@ -205,95 +250,198 @@ def cat(parts):
 
 def head(parts):
     params = parts.get("params", [])
-    flags = parts.get("flags", "")
-    n = 10  # default
+    flags = parts.get("flags", "") or ""
+    input_data = parts.get("input", None)
+    redirect_file = parts.get("redirect", None)
 
-    if flags:
-        for flag in flags.split():
-            if flag.startswith("n"):
-                try:
-                    n = int(flag[1:])
-                except:
-                    return {"output": None, "error": f"head: invalid number in flag '{flag}'"}
+    if "h" in flags or "--help" in params:
+        help_text = (
+            "Usage: head [OPTION]... [FILE]...\n"
+            "Print the first 10 lines of each FILE to standard output.\n"
+            "With more than one FILE, precede each with a header.\n"
+            "Options:\n"
+            "  -n NUM       print the first NUM lines instead of the first 10\n"
+            "  -h, --help   display this help text\n"
+        )
+        return {"output": help_text, "error": None}
 
-    if not params:
-        return {"output": None, "error": "head: missing operand"}
+    n = 10
+    if "n" in flags:
+        try:
+            n = int(flags.replace("n", ""))
+        except ValueError:
+            return {"output": None, "error": f"head: invalid number in flag '{flags}'"}
 
-    output = []
+    output_lines = []
+    errors = []
+
+    def process_content(name, content):
+        lines = content.splitlines()
+        if len(params) > 1:
+            header = f"==> {name} <=="
+            output_lines.append(header)
+        output_lines.extend(lines[:n])
+
+    if input_data:
+        process_content("stdin", input_data)
+
     for file in params:
         try:
             with open(file, "r") as f:
-                lines = f.readlines()
-                output.append("".join(lines[:n]))
+                content = f.read()
+            process_content(file, content)
+        except FileNotFoundError:
+            errors.append(f"head: cannot open '{file}' for reading: No such file or directory")
+        except PermissionError:
+            errors.append(f"head: cannot open '{file}' for reading: Permission denied")
         except Exception as e:
-            return {"output": None, "error": f"head: {e}"}
+            errors.append(f"head: {file}: {e}")
 
-    return {"output": "\n".join(output), "error": None}
+    output = "\n".join(output_lines) if output_lines else None
+    error = "\n".join(errors) if errors else None
+
+    if redirect_file and output is not None:
+        try:
+            with open(redirect_file, "w") as f:
+                f.write(output)
+            output = None
+        except Exception as e:
+            error = f"head: cannot write to {redirect_file}: {e}"
+
+    return {"output": output, "error": error}
 
 
 def tail(parts):
     params = parts.get("params", [])
-    flags = parts.get("flags", "")
+    flags = str(parts.get("flags") or "")
+    flag_values = parts.get("flag_values", {})
+    input_data = parts.get("input", None)
+    redirect_file = parts.get("redirect", None)
+
+    if "h" in flags or "--help" in params:
+        help_text = (
+            "tail: print the last 10 lines of each FILE to standard output.\n\n"
+            "Usage:\n"
+            "  tail [OPTION]... [FILE]...\n\n"
+            "Options:\n"
+            "  -n NUM      output the last NUM lines, instead of the last 10\n"
+            "  -h          display this help and exit\n\n"
+            "If no FILE is given, or when FILE is '-', read standard input."
+        )
+        return {"output": help_text, "error": None}
+
     n = 10
-
-    if flags:
-        for flag in flags.split():
-            if flag.startswith("n"):
-                try:
-                    n = int(flag[1:])
-                except:
-                    return {"output": None, "error": f"tail: invalid number in flag '{flag}'"}
-
-    if not params:
-        return {"output": None, "error": "tail: missing operand"}
-
-    output = []
-    for file in params:
+    if "n" in flag_values:
         try:
-            with open(file, "r") as f:
-                lines = f.readlines()
-                output.append("".join(lines[-n:]))
-        except Exception as e:
-            return {"output": None, "error": f"tail: {e}"}
+            n = int(flag_values["n"])
+            if n < 0:
+                return {"output": None, "error": f"tail: invalid number of lines: {flag_values['n']}"}
+        except ValueError:
+            return {"output": None, "error": f"tail: invalid number of lines: {flag_values['n']}"}
 
-    return {"output": "\n".join(output), "error": None}
+    output_lines = []
+    errors = []
+
+    if input_data:
+        lines = input_data.splitlines()
+        output_lines.extend(lines[-n:])
+    elif params:  # files
+        for fname in params:
+            try:
+                with open(fname, "r") as f:
+                    lines = f.readlines()
+                    if len(params) > 1:
+                        output_lines.append(f"==> {fname} <==")
+                    output_lines.extend([line.rstrip("\n") for line in lines[-n:]])
+            except FileNotFoundError:
+                errors.append(f"tail: cannot open '{fname}' for reading: No such file")
+            except Exception as e:
+                errors.append(f"tail: {fname}: {e}")
+    else:
+        return {"output": None, "error": "tail: no input provided"}
+
+    output = "\n".join(output_lines)
+
+    if redirect_file and output:
+        try:
+            with open(redirect_file, "w") as f:
+                f.write(output)
+            output = None
+        except Exception as e:
+            errors.append(f"tail: cannot write to {redirect_file}: {e}")
+
+    error = "\n".join(errors) if errors else None
+    return {"output": output, "error": error}
 
 
 def less(parts):
     params = parts.get("params") or []
-    if not params:
-        return {"output": None, "error": "less: missing operand"}
+    input_data = parts.get("input") or None
+    redirect_file = parts.get("redirect") or None
+    flags = str(parts.get("flags") or "")
 
-    file_path = params[0]
+    if "h" in flags:
+        help_text = (
+            "less: view file or input one screen at a time.\n\n"
+            "Usage:\n"
+            "  less [FILE]\n\n"
+            "Controls:\n"
+            "  j or DOWN arrow   scroll down one line\n"
+            "  k or UP arrow     scroll up one line\n"
+            "  SPACE             scroll down one page\n"
+            "  b                 scroll up one page\n"
+            "  q or Ctrl-C       quit less"
+        )
+        return {"output": help_text, "error": None}
 
-    try:
-        with open(file_path, "r") as f:
-            lines = f.readlines()
-    except Exception as e:
-        return {"output": None, "error": f"less: {e}"}
+    lines = []
+    errors = []
+
+    if input_data:
+        lines = input_data.splitlines()
+    elif params:
+        file_path = params[0]
+        try:
+            with open(file_path, "r") as f:
+                lines = f.readlines()
+        except Exception as e:
+            return {"output": None, "error": f"less: {e}"}
+    else:
+        return {"output": None, "error": "less: missing input"}
+
+    if redirect_file:
+        try:
+            with open(redirect_file, "w") as f:
+                f.write("".join(lines))
+            return {"output": None, "error": None}
+        except Exception as e:
+            return {"output": None, "error": f"less: cannot write to {redirect_file}: {e}"}
 
     page_size = 20
     pos = 0
+    total_lines = len(lines)
 
     while True:
         os.system("clear")
         page = lines[pos:pos + page_size]
         print("".join(page), end="")
-        print(f"\n--Lines {pos+1}-{min(pos+page_size,len(lines))} of {len(lines)}--", end="", flush=True)
+        print(f"\n--Lines {pos+1}-{min(pos+page_size,total_lines)} of {total_lines}--", end="", flush=True)
 
         char = getch()
 
         if char in ("q", "\x03"):
             break
-        elif char in ("\r", "\n", "j", "\x1b[B"):
-            if pos + page_size < len(lines):
+        elif char in ("j", "\x1b[B", "\r", "\n"):
+            if pos + 1 < total_lines:
                 pos += 1
         elif char in ("k", "\x1b[A"):
             if pos > 0:
                 pos -= 1
         elif char == " ":
-            if pos + page_size < len(lines):
+            if pos + page_size < total_lines:
                 pos += page_size
+            else:
+                pos = total_lines - 1
         elif char == "b":
             pos = max(0, pos - page_size)
 
