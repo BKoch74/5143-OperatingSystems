@@ -952,11 +952,11 @@ if __name__ == "__main__":
                             command_list = output["execute"] + command_list[1:]
                             piped_input = None
                             break
-						elif output.get("error"):
-							print(output["error"])
-							piped_input = None
-							final_output = None
-							break
+					elif output.get("error"):
+						print(output["error"])
+						piped_input = None
+						final_output = None
+						break
                     elif c == "chmod":
                         output = chmod(command)
                     elif c == "sort":
