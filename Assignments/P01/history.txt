@@ -1,0 +1,14 @@
+1 history
+2 ls
+3 ls
+4 ls -lah
+5 cat bacon.txt
+6 history
+7 history
+8 grep "bacon" bacon.txt
+9 grep bacon.txt "bacon"
+10 grep bacon bacon.txt
+11 ls -lah | grep ".py"
+12 ls -lah | grep .py
+13 history
+14 history > history.txt

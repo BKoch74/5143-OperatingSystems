@@ -76,13 +76,19 @@ def parse_cmd(cmd_input):
     return command_list
  
 
-def print_cmd(cmd):
-    """This function "cleans" off the command line, then prints
-    whatever cmd that is passed to it to the bottom of the terminal.
-    """
+def print_cmd(cmd, cursor_pos=None):
+    """Cleans the line, prints the cmd with prompt,
+    and repositions the cursor if needed."""
     padding = " " * 80
-    sys.stdout.write("\r" + padding)
-    sys.stdout.write("\r" + prompt + cmd)
+    sys.stdout.write("\r" + padding)        # clear line
+    sys.stdout.write("\r" + prompt + cmd)   # reprint line
+
+    if cursor_pos is not None:
+        # Move cursor back from the end to correct position
+        back_moves = len(cmd) - cursor_pos
+        if back_moves > 0:
+            sys.stdout.write("\b" * back_moves)
+
     sys.stdout.flush()
 
 def ls(parts):
@@ -912,8 +918,9 @@ if __name__ == "__main__":
     cmd_history = load_history()
     history_index = len(cmd_history)
     cmd = ""
+    cursor_pos = 0
 
-    print_cmd(cmd)
+    print_cmd(cmd, cursor_pos)
 
     while True:
         char = getch()
@@ -925,18 +932,21 @@ if __name__ == "__main__":
 
         # Backspace
         elif char == "\x7f":
-            cmd = cmd[:-1]
-            print_cmd(cmd)
+            if cursor_pos > 0:
+                cmd = cmd[:cursor_pos-1] + cmd[cursor_pos:]
+                cursor_pos -= 1
+            print_cmd(cmd, cursor_pos)
 
         # Arrow keys
         elif char == "\x1b":
-            getch()  # skip '['
+            getch()
             direction = getch()
             if direction == "A":  # Up
                 if cmd_history and history_index > 0:
                     history_index -= 1
                     cmd = cmd_history[history_index]
-                    print_cmd(cmd)
+                    cursor_pos = len(cmd)
+                    print_cmd(cmd, cursor_pos)
             elif direction == "B":  # Down
                 if cmd_history and history_index < len(cmd_history) - 1:
                     history_index += 1
@@ -944,14 +954,24 @@ if __name__ == "__main__":
                 else:
                     history_index = len(cmd_history)
                     cmd = ""
-                print_cmd(cmd)
+                cursor_pos = len(cmd)
+                print_cmd(cmd, cursor_pos)
+            elif direction == "C":  # Right
+                if cursor_pos < len(cmd):
+                    cursor_pos += 1
+                print_cmd(cmd, cursor_pos)
+            elif direction == "D":  # Left
+                if cursor_pos > 0:
+                    cursor_pos -= 1
+                print_cmd(cmd, cursor_pos)
 
         # Enter pressed
         elif char == "\r":
-            print()  # move to next line
+            print()  # newline
             if not cmd.strip():
                 cmd = ""
-                print_cmd(cmd)
+                cursor_pos = 0
+                print_cmd(cmd, cursor_pos)
                 continue
 
             if cmd.startswith("!"):
@@ -959,21 +979,22 @@ if __name__ == "__main__":
                     num = int(cmd[1:])
                     if num <= 0 or num > len(cmd_history):
                         print(f"bash: !{num}: event not found")
-                        cmd = ""
-                        print_cmd(cmd)
+                        cmd, cursor_pos = "", 0
+                        print_cmd(cmd, cursor_pos)
                         continue
                     cmd = cmd_history[num - 1]
-                    print(cmd)  # echo the command being executed
+                    print(cmd)  # echo command
                 except ValueError:
                     print(f"bash: {cmd}: event not found")
-                    cmd = ""
-                    print_cmd(cmd)
+                    cmd, cursor_pos = "", 0
+                    print_cmd(cmd, cursor_pos)
                     continue
 
             cmd_history.append(cmd)
             history_index = len(cmd_history)
-            save_history(cmd_history)  # update file immediately
+            save_history(cmd_history)
 
+            # run commands
             command_list = parse_cmd(cmd)
             piped_input = None
             final_output = None
@@ -1015,16 +1036,15 @@ if __name__ == "__main__":
                         output = chmod(command)
                     elif c == "sort":
                         output = sorting(command)
-                    elif c == 'wc':
+                    elif c == "wc":
                         output = wc(command)
-                    elif c == 'count':
+                    elif c == "count":
                         output = count(command)
                     else:
                         output = {"output": None, "error": f"{c}: command not found"}
                 except Exception as e:
                     output = {"output": None, "error": str(e)}
 
-                # Handle errors
                 if output["error"]:
                     print(output["error"])
                     piped_input = None
@@ -1042,14 +1062,13 @@ if __name__ == "__main__":
                 except Exception as e:
                     print(f"Error writing to file {redirect_file}: {e}")
 
-            # Print final output if not redirected
             if final_output and final_output.get("output"):
                 print(final_output["output"])
 
             cmd = ""
-            print_cmd(cmd)
-
-        # Regular character input
+            cursor_pos = 0
+            print_cmd(cmd, cursor_pos)
         else:
-            cmd += char
-            print_cmd(cmd)
+            cmd = cmd[:cursor_pos] + char + cmd[cursor_pos:]
+            cursor_pos += 1
+            print_cmd(cmd, cursor_pos)
