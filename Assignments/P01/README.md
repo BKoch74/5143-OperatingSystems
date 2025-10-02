@@ -20,13 +20,13 @@ Run the `shell.py` file and use the following commands.
 | `less`    | View the contents of text files |   Bryce  |
 | `head`    | Writes to standard output a specified number of lines      |   Bryce  |
 | `tail`    | Outputs last part of files      |   Bryce  |
+| `count`| Counts lines, words, and/or characters in input text (command of choice)             |   Bryce    |
 | `pwd`     | Print working directory         |   Mae    |
 | `mv`      | Moves files or directories      |   Mae    |
 | `cd`      | Changes the current directory   |   Mae    |
 | `cd..`    | Changes the current directory to one directory up             |   Mae    |
 | `cd~`     | Changes the current directory to the user's home directory    |   Mae    |
 | `mkdir`   | Creates a new directory    |   Mae    |
-| `sysCheck/ESC`| Displays the system health/ESC to exit terminal (command of choice)             |   Mae    |
 | `cp`      | Copy files and directories      |  Aretha  |
 | `grep`    | Search for specific patterns    |  Aretha  |
 | `wc`      | Count lines, words, bytes       |  Aretha  |
@@ -36,4 +36,4 @@ Run the `shell.py` file and use the following commands.
 | `!x`      | Print expanded history          |  Aretha  |
 
 ## Non-Working Components:
-Command of choice: We're still working on it.
+N/A
