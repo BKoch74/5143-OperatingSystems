@@ -26,19 +26,19 @@ prompt = "$"  # set default prompt
 
 #search for history file, then use readline to load previous commands into the shell
 def history_progress():
-	if os.path.exists(SAVED_HISTORY):
-		readline.read_history_file(SAVED_HISTORY)
-	
+    if os.path.exists(SAVED_HISTORY):
+        readline.read_history_file(SAVED_HISTORY)
+
 #write all commands typed to history file
 def history_register():
-	readline.write_history_file(SAVED_HISTORY)
+    readline.write_history_file(SAVED_HISTORY)
 
 def parse_cmd(cmd_input):
     command_list = []
     cmds = [c.strip() for c in cmd_input.split("|")]
 
     for cmd in cmds:
-        d = {"input": None, "cmd": None, "params": [], "flags": set(), "redirect": None}
+        d = {"input": None, "cmd": None, "params": [], "flags": None, "redirect": None}
         parts = cmd.split()
         i = 0
         while i < len(parts):
@@ -48,13 +48,11 @@ def parse_cmd(cmd_input):
             elif part.startswith("-") and len(part) > 1:
                 if part[1:] in ["n"]:  # flags that take an argument
                     if i + 1 < len(parts):
-                        d["flags"].add(f"{part[1:]}{parts[i + 1]}")
+                        d["flags"] = f"{part[1:]}{parts[i + 1]}"
                         i += 1
-                    else:
-                        d["flags"].add(part[1:])
+                        d["flags"] = part[1:]
                 else:
-                    for c in part[1:]: #store individual characters in the flag 
-                   		d["flags"].add(c)
+                    d["flags"] = part[1:]
             elif part == ">":
                 if i + 1 < len(parts):
                     d["redirect"] = parts[i + 1]
@@ -952,11 +950,11 @@ if __name__ == "__main__":
                             command_list = output["execute"] + command_list[1:]
                             piped_input = None
                             break
-					elif output.get("error"):
-						print(output["error"])
-						piped_input = None
-						final_output = None
-						break
+                        elif output.get("error"):
+                            print(output["error"])
+                            piped_input = None
+                            final_output = None
+                            break
                     elif c == "chmod":
                         output = chmod(command)
                     elif c == "sort":
