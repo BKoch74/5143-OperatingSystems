@@ -583,55 +583,77 @@ def cp(parts):
     return {"output" : output, "error": error}
 
 def grep(parts):
+    """
+    Grep-like command for CLI.
+    Flags supported:
+        -i : ignore case
+        -v : invert match
+        -c : count matches
+        -l : list only file names with matches
+    Accepts piped input via 'input' key.
+    Redirects output if 'redirect' is specified.
+    """
     params = parts.get("params", [])
     flags = parts.get("flags", "") or ""
+    input_data = parts.get("input", None)
     redirect_file = parts.get("redirect", None)
-    input_data = parts.get("input")  # from a pipe
     errors = []
 
-    if "h" in flags or "help" in flags:
-        help_text = (
-            "Usage: grep [PATTERN] [FILE...]\n"
-            "Search for PATTERN in each FILE or from piped input.\n\n"
-            "Options:\n"
-            "  -h      Display this help message and exit\n"
-            "\n"
-            "Examples:\n"
-            "  grep 'hello' file.txt         Search 'hello' in file.txt\n"
-            "  cat file.txt | grep 'hello'   Search 'hello' from piped input\n"
-            "  grep 'error' *.log > output   Save matching lines to output file\n"
-        )
-        return {"output": help_text, "error": None}
-    if not params: #if no string is given, an error will be sent 
-        return {"output": None, "error": "grep: missing search string"}
+    if not params and not input_data:
+        return {"output": None, "error": "grep: missing search pattern"}
 
-    pattern = params[0] #search pattern and files
-    files = params[1:]
+    # First param is always the pattern
+    pattern = params[0]
+    files = params[1:] if len(params) > 1 else []
 
-    matches = [] #store matching lines
+    ignore_case = 'i' in flags
+    invert = 'v' in flags
+    count_only = 'c' in flags
+    list_files = 'l' in flags
 
+    matches = []
+    matched_files = set()
+
+    # Helper to test if a line matches
+    def line_matches(line):
+        test_line = line.lower() if ignore_case else line
+        test_pattern = pattern.lower() if ignore_case else pattern
+        matched = test_pattern in test_line
+        return not matched if invert else matched
+
+    # If piped input exists
     if input_data:
         for line in input_data.splitlines():
-            if pattern in line:
-                matches.append(line.rstrip("\n"))
+            if line_matches(line):
+                matches.append(line)
 
-    elif files: #scans lines in file
-        for fname in files:
-            try:
-                with open(fname, "r") as f:
-                    for line in f:
-                        if pattern in line:
+    # If files are specified
+    for fname in files:
+        try:
+            with open(fname, "r") as f:
+                file_lines = f.readlines()
+                file_match_count = 0
+                for line in file_lines:
+                    if line_matches(line):
+                        file_match_count += 1
+                        if not count_only and not list_files:
                             matches.append(line.rstrip("\n"))
-            except FileNotFoundError:
-                errors.append(f"grep: {fname}: No such file")
-            except Exception as e:
-                errors.append(f"grep: {fname}: {e}")
+                if count_only:
+                    matches.append(f"{file_match_count}")
+                if list_files and file_match_count > 0:
+                    matched_files.add(fname)
+        except FileNotFoundError:
+            errors.append(f"grep: {fname}: No such file")
+        except Exception as e:
+            errors.append(f"grep: {fname}: {e}")
 
-    else:
-        return {"output": None, "error": "grep: no input provided"}
+    # For list_files flag
+    if list_files:
+        matches = list(matched_files)
 
     output = "\n".join(matches) if matches else ""
 
+    # Redirect output if needed
     if redirect_file and output:
         try:
             with open(redirect_file, "w") as f:
@@ -643,6 +665,16 @@ def grep(parts):
     error = "\n".join(errors) if errors else None
     return {"output": output, "error": error}
 
+def clear(parts=None):
+    try:
+        # Cross-platform clear
+        if os.name == "nt":
+            os.system("cls")
+        else:
+            os.system("clear")
+        return {"output": None, "error": None}
+    except Exception as e:
+        return {"output": None, "error": f"clear: {e}"}
 
 def wc(parts):
     params = parts.get ("params", [])
@@ -1065,6 +1097,8 @@ if __name__ == "__main__":
                         output = cd(command)
                     elif c == "mkdir":
                         output = mkdir(command)
+                    elif c == "clear":
+                        output = clear(command)
                     elif c == "history":
                         hist_out = "\n".join(f"{i + 1} {c}" for i, c in enumerate(cmd_history))
                         output = {"output": hist_out, "error": None}
