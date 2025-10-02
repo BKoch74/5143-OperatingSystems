@@ -18,18 +18,19 @@ from pathlib import Path
 
 ##################################################################################
 ##################################################################################
-SAVED_HISTORY = os.path.expanduser(“~/.Shell_History”) #create file to store history of typed commands
+SAVED_HISTORY = os.path.expanduser('~/.Shell_History') #create file to store history of typed commands
 
 getch = Getch()  # create instance of our getch class
 
 prompt = "$"  # set default prompt
 
-#search for history file, then uses readline to load previous commands into the shell
+#search for history file, then use readline to load previous commands into the shell
 def history_progress():
-	If os.path.exists(SAVED_HISTORY):
+	if os.path.exists(SAVED_HISTORY):
 		readline.read_history_file(SAVED_HISTORY)
+	
 #write all commands typed to history file
-def history_register()
+def history_register():
 	readline.write_history_file(SAVED_HISTORY)
 
 def parse_cmd(cmd_input):
@@ -37,7 +38,7 @@ def parse_cmd(cmd_input):
     cmds = [c.strip() for c in cmd_input.split("|")]
 
     for cmd in cmds:
-        d = {"input": None, "cmd": None, "params": [], "flags": None, "redirect": None}
+        d = {"input": None, "cmd": None, "params": [], "flags": set(), "redirect": None}
         parts = cmd.split()
         i = 0
         while i < len(parts):
@@ -45,14 +46,15 @@ def parse_cmd(cmd_input):
             if i == 0:
                 d["cmd"] = part
             elif part.startswith("-") and len(part) > 1:
-                if part[1:] in ["n"]:  # flags that take an argument
+				if part[1:] in ["n"]:  # flags that take an argument
                     if i + 1 < len(parts):
-                        d["flags"] = f"{part[1:]}{parts[i + 1]}"
+                        d["flags"].add(f"{part[1:]}{parts[i + 1]}")
                         i += 1
                     else:
-                        d["flags"] = part[1:]
-                else:
-                    d["flags"] = part[1:]
+                        d["flags"].add(part[1:])
+				else:
+					for c in part[1:]: #store individual characters in the flag 
+                   		d["flags"].add(c)
             elif part == ">":
                 if i + 1 < len(parts):
                     d["redirect"] = parts[i + 1]
