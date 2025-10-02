@@ -11,6 +11,7 @@ import subprocess
 import shutil
 import time
 import pwd
+import grp
 import readline
 import stat
 from rich import print
@@ -95,75 +96,118 @@ def ls(parts):
     """
     ls-like command supporting:
     -a : show hidden files
-    -l : long format with permissions, owner, size, mtime
-    -h : human-readable sizes (works with -l)
-    Displays horizontally if -l is not used.
+    -l : long format with permissions, owner, group, size, mtime
+    -h : human-readable sizes (with -l)
+    Supports multiple paths like real ls.
     """
     flags = parts.get("flags", "") or ""
-    params = parts.get("params") or []
+    params = parts.get("params") or ["."]
+    results = []
 
-    path = params[0] if params else "."
+    def human_readable_size(size):
+        units = ["B", "K", "M", "G", "T", "P"]
+        s = float(size)
+        for unit in units:
+            if s < 1024:
+                return f"{s:.1f}{unit}" if unit != "B" else f"{int(s)}{unit}"
+            s /= 1024
+        return f"{s:.1f}E"
 
-    if not os.path.exists(path):
-        return {"output": None, "error": f"ls: cannot access '{path}': No such directory"}
+    def format_entry(full_path, stats, name_override=None):
+        e = name_override or os.path.basename(full_path)
+        if "l" not in flags:
+            return e
 
-    try:
-        entries = os.listdir(path)
-    except PermissionError:
-        return {"output": None, "error": "ls: Permission denied"}
+        # Permissions and type
+        perms = stat.filemode(stats.st_mode)
 
-    # Handle -a (show hidden files)
-    if 'a' not in flags:
-        entries = [e for e in entries if not e.startswith('.')]
+        # Links
+        nlink = stats.st_nlink
 
-    entries.sort()
-    output_lines = []
+        # Owner and group
+        try:
+            owner = pwd.getpwuid(stats.st_uid).pw_name
+        except KeyError:
+            owner = str(stats.st_uid)
+        try:
+            group = grp.getgrgid(stats.st_gid).gr_name
+        except KeyError:
+            group = str(stats.st_gid)
 
-    if 'l' in flags:
-        for e in entries:
-            full_path = os.path.join(path, e)
+        # Size
+        size = stats.st_size
+        size_str = human_readable_size(size) if "h" in flags else str(size)
+
+        # Modification time
+        mtime = time.strftime("%b %d %H:%M", time.localtime(stats.st_mtime))
+
+        # Symlink handling
+        if stat.S_ISLNK(stats.st_mode):
             try:
-                stats = os.stat(full_path)
-            except Exception:
-                continue
+                target = os.readlink(full_path)
+                e_display = f"{e} -> {target}"
+            except OSError:
+                e_display = e
+        else:
+            e_display = e
 
-            # Permissions
-            mode = stats.st_mode
-            perms = ""
-            for shift in [6, 3, 0]:  # user, group, other
-                perms += "r" if mode & (0o400 >> shift) else "-"
-                perms += "w" if mode & (0o200 >> shift) else "-"
-                perms += "x" if mode & (0o100 >> shift) else "-"
+        return f"{perms} {nlink:3} {owner:8} {group:8} {size_str:>8} {mtime} {e_display}"
 
-            # Owner
+    def format_columns(entries):
+        cols, _ = shutil.get_terminal_size(fallback=(80, 20))
+        if not entries:
+            return ""
+        max_len = max(len(e) for e in entries) + 2
+        per_line = max(1, cols // max_len)
+        lines = []
+        for i in range(0, len(entries), per_line):
+            row = "".join(e.ljust(max_len) for e in entries[i:i + per_line])
+            lines.append(row.rstrip())
+        return "\n".join(lines)
+
+    for path in params:
+        if not os.path.exists(path):
+            results.append(f"ls: cannot access '{path}': No such file or directory")
+            continue
+
+        # File or symlink
+        if os.path.isfile(path) or os.path.islink(path):
             try:
-                owner = stats.st_uid
-            except KeyError:
-                owner = str(stats.st_uid)
+                stats = os.lstat(path)
+                results.append(format_entry(path, stats))
+            except Exception as e:
+                results.append(f"ls: cannot access '{path}': {e}")
+            continue
 
-            # Size
-            size = stats.st_size
-            if 'h' in flags:
-                s = size
-                for unit in ['B', 'K', 'M', 'G', 'T']:
-                    if s < 1024:
-                        size_str = f"{int(s)}{unit}"
-                        break
-                    s /= 1024
-            else:
-                size_str = str(size)
+        # Directory
+        try:
+            entries = os.listdir(path)
+        except PermissionError:
+            results.append(f"ls: cannot open directory '{path}': Permission denied")
+            continue
 
-            # Modification time
-            mtime = time.strftime("%Y-%m-%d %H:%M", time.localtime(stats.st_mtime))
+        if "a" not in flags:
+            entries = [e for e in entries if not e.startswith(".")]
 
-            output_lines.append(f"{perms} {owner:8} {size_str:>6} {mtime} {e}")
+        entries.sort()
 
-        output = "\n".join(output_lines)
-    else:
-        # Horizontal output
-        output = "  ".join(entries)
+        if len(params) > 1:
+            results.append(f"{path}:")
 
-    return {"output": output, "error": None}
+        if "l" in flags:
+            lines = []
+            for e in entries:
+                full_path = os.path.join(path, e)
+                try:
+                    stats = os.lstat(full_path)
+                except Exception:
+                    continue
+                lines.append(format_entry(full_path, stats, e))
+            results.append("\n".join(lines))
+        else:
+            results.append(format_columns(entries))
+
+    return {"output": "\n".join(results), "error": None}
 
 def rm(parts):
     params = parts.get("params") or []
@@ -758,7 +802,7 @@ def history_expansion(parts, cmd_history):
         return {"output": None, "error": "Invalid history index"}
 
 
-def pwd(parts):
+def pwd_cmd(parts):
     output = None
     error = None
     flags = parts.get("flags", "") or ""
@@ -1022,7 +1066,7 @@ if __name__ == "__main__":
                     elif c == "cp":
                         output = cp(command)
                     elif c == "pwd":
-                        output = pwd(command)
+                        output = pwd_cmd(command)
                     elif c == "mv":
                         output = mv(command)
                     elif c == "cd":
