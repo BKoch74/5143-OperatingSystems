@@ -26,13 +26,21 @@ getch = Getch()  # create instance of our getch class
 prompt = "$"  # set default prompt
 
 #search for history file, then use readline to load previous commands into the shell
-def history_progress():
-    if os.path.exists(SAVED_HISTORY):
-        readline.read_history_file(SAVED_HISTORY)
+HISTORY_FILE = os.path.expanduser("~/.myshell_history")
 
-#write all commands typed to history file
-def history_register():
-    readline.write_history_file(SAVED_HISTORY)
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, "r") as f:
+            return [line.rstrip("\n") for line in f]
+    return []
+
+def save_history(cmd_history):
+    try:
+        with open(HISTORY_FILE, "w") as f:
+            for cmd in cmd_history:
+                f.write(cmd + "\n")
+    except Exception as e:
+        print(f"Error saving history: {e}", file=sys.stderr)
 
 def parse_cmd(cmd_input):
     command_list = []
@@ -900,11 +908,9 @@ def count(parts):
     error = "\n".join(errors) if errors else None
     return {"output": output, "error": error}
 
-history_progress()
-
 if __name__ == "__main__":
-    cmd_history = []
-    history_index = 0
+    cmd_history = load_history()
+    history_index = len(cmd_history)
     cmd = ""
 
     print_cmd(cmd)
@@ -914,7 +920,7 @@ if __name__ == "__main__":
 
         # Ctrl-C or 'exit'
         if char == "\x03" or cmd.strip() == "exit":
-            history_register() #save history before leaving
+            save_history(cmd_history)  # save history before leaving
             raise SystemExit("Bye.")
 
         # Backspace
@@ -939,7 +945,6 @@ if __name__ == "__main__":
                     history_index = len(cmd_history)
                     cmd = ""
                 print_cmd(cmd)
-            # Left/Right arrows can be ignored for now
 
         # Enter pressed
         elif char == "\r":
@@ -949,11 +954,26 @@ if __name__ == "__main__":
                 print_cmd(cmd)
                 continue
 
-            # Save to history
+            if cmd.startswith("!"):
+                try:
+                    num = int(cmd[1:])
+                    if num <= 0 or num > len(cmd_history):
+                        print(f"bash: !{num}: event not found")
+                        cmd = ""
+                        print_cmd(cmd)
+                        continue
+                    cmd = cmd_history[num - 1]
+                    print(cmd)  # echo the command being executed
+                except ValueError:
+                    print(f"bash: {cmd}: event not found")
+                    cmd = ""
+                    print_cmd(cmd)
+                    continue
+
             cmd_history.append(cmd)
             history_index = len(cmd_history)
+            save_history(cmd_history)  # update file immediately
 
-            # Parse commands
             command_list = parse_cmd(cmd)
             piped_input = None
             final_output = None
@@ -991,17 +1011,6 @@ if __name__ == "__main__":
                     elif c == "history":
                         hist_out = "\n".join(f"{i + 1} {c}" for i, c in enumerate(cmd_history))
                         output = {"output": hist_out, "error": None}
-                    elif c.startswith("!"):
-                        output = history_expansion({"params": [c[1:]]},cmd_history)
-                        if output.get("execute"):
-                            command_list = output["execute"] + command_list[1:]
-                            piped_input = None
-                            break
-                        elif output.get("error"):
-                            print(output["error"])
-                            piped_input = None
-                            final_output = None
-                            break
                     elif c == "chmod":
                         output = chmod(command)
                     elif c == "sort":
