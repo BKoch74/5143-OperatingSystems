@@ -35,5 +35,12 @@ Run the `shell.py` file and use the following commands.
 | `sort`    | Rearrange file alphabetically   |  Aretha  |
 | `!x`      | Print expanded history          |  Aretha  |
 
+## Difficulties/Challenges:
+When we joined all our commands we had some errors so that had some tweaking to do.
+
+We ran into an indentation error.
+
+Initially, we wanted to go with a command called sysCheck that would display the system health but ran into some problems with it. 
+
 ## Non-Working Components:
 N/A
