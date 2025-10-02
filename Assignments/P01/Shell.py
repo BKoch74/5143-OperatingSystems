@@ -11,16 +11,26 @@ import subprocess
 import shutil
 import time
 import pwd
+import readline
 from rich import print
 from getch import Getch
 from pathlib import Path
 
 ##################################################################################
 ##################################################################################
+SAVED_HISTORY = os.path.expanduser(“~/.Shell_History”) #create file to store history of typed commands
 
 getch = Getch()  # create instance of our getch class
 
 prompt = "$"  # set default prompt
+
+#search for history file, then uses readline to load previous commands into the shell
+def history_progress():
+	If os.path.exists(SAVED_HISTORY):
+		readline.read_history_file(SAVED_HISTORY)
+#write all commands typed to history file
+def history_register()
+	readline.write_history_file(SAVED_HISTORY)
 
 def parse_cmd(cmd_input):
     command_list = []
@@ -824,6 +834,7 @@ def count(parts):
     error = "\n".join(errors) if errors else None
     return {"output": output, "error": error}
 
+history_progress()
 
 if __name__ == "__main__":
     cmd_history = []
@@ -837,6 +848,7 @@ if __name__ == "__main__":
 
         # Ctrl-C or 'exit'
         if char == "\x03" or cmd.strip() == "exit":
+            history_register() #save history before leaving
             raise SystemExit("Bye.")
 
         # Backspace
