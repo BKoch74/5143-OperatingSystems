@@ -6,6 +6,7 @@ This file is about capturing the user input so that you can mimic shell behavior
 
 """
 import os
+import random
 import sys
 import subprocess
 import shutil
@@ -904,59 +905,50 @@ def mkdir(parts):
         error = f"Directory '{dicty_name}' already exists."
     return {"output": output, "error": error}
 
-def count(parts):
+
+def randomline(parts):
     """
-    Custom CLI command:
-    count -l -> count lines
-    count -w -> count words
-    count -c -> count characters
-    Can take piped input or file names in params
+    randomline - prints one or more random lines from a file or piped input
+    Usage:
+        randomline <file1> [file2 ...]      # print 1 random line per file
+        randomline -n 5 <file>              # print 5 random lines
+    Accepts piped input as well.
     """
-    flags = parts.get("flags", "") or ""
     params = parts.get("params", [])
-    input_data = parts.get("input")
-    redirect_file = parts.get("redirect", None)
-    errors = []
+    input_data = parts.get("input", None)
+    flags = parts.get("flags", "") or ""
 
-    count_lines = 'l' in flags
-    count_words = 'w' in flags
-    count_chars = 'c' in flags
-
-    if not (count_lines or count_words or count_chars):
-        count_lines = True
-
-    text_data = ""
-    if input_data:
-        text_data = input_data
-    elif params:
-        for fname in params:
-            try:
-                with open(fname, "r") as f:
-                    text_data += f.read() + "\n"
-            except Exception as e:
-                errors.append(f"count: {fname}: {e}")
-    else:
-        return {"output": None, "error": "count: no input provided"}
-    output_parts = []
-    if count_lines:
-        output_parts.append(f"Lines: {len(text_data.splitlines())}")
-    if count_words:
-        output_parts.append(f"Words: {len(text_data.split().copy())}")
-    if count_chars:
-        output_parts.append(f"Chars: {len(text_data)}")
-
-    output = " | ".join(output_parts)
-
-    if redirect_file:
+    num_lines = 1  # default
+    if 'n' in flags:
         try:
-            with open(redirect_file, "w") as f:
-                f.write(output)
-            output = None
-        except Exception as e:
-            errors.append(f"count: {e}")
+            # expect flags like "n5"
+            num_lines = int(flags.replace("n", ""))
+        except ValueError:
+            return {"output": None, "error": f"randomline: invalid number in flag '{flags}'"}
 
-    error = "\n".join(errors) if errors else None
-    return {"output": output, "error": error}
+    lines = []
+
+    # Collect input
+    if input_data:
+        lines.extend(input_data.splitlines())
+    for file in params:
+        try:
+            with open(file, "r") as f:
+                lines.extend(f.read().splitlines())
+        except Exception as e:
+            return {"output": None, "error": f"randomline: {file}: {e}"}
+
+    if not lines:
+        return {"output": None, "error": "randomline: no input provided"}
+
+    # Pick random lines
+    if num_lines > len(lines):
+        num_lines = len(lines)
+
+    output_lines = random.sample(lines, num_lines)
+    output = "\n".join(output_lines)
+
+    return {"output": output, "error": None}
 
 if __name__ == "__main__":
     cmd_history = load_history()
@@ -1082,8 +1074,8 @@ if __name__ == "__main__":
                         output = sorting(command)
                     elif c == "wc":
                         output = wc(command)
-                    elif c == "count":
-                        output = count(command)
+                    elif c == "randomline":
+                        output = randomline(command)
                     else:
                         output = {"output": None, "error": f"{c}: command not found"}
                 except Exception as e:
