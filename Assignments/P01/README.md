@@ -42,4 +42,4 @@ Run the `shell.py` file and use the following commands.
 4) Initially, we wanted to go with a command called sysCheck that would display the system health but ran into some problems with it. 
 
 ## Non-Working Components:
-N/A
+wc command produces a word count only, rather than lines, words, and bytes.
