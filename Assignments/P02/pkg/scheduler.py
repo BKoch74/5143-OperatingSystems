@@ -28,7 +28,7 @@ class Scheduler:
         export_json(filename): export the structured log to a JSON file
         export_csv(filename): export the structured log to a CSV file"""
 
-    def __init__(self, num_cpus=1, num_ios=1, verbose=True):
+     def __init__(self, num_cpus=1, num_ios=1, verbose=True):
 
         self.clock = Clock()  # shared clock instance for all components Borg pattern
 
@@ -48,6 +48,7 @@ class Scheduler:
         self.log = []  # human-readable + snapshots
         self.events = []  # structured log for export
         self.verbose = verbose  # if True, print log entries to console
+        self.future_processes = [] # processes that have not yet started
 
     def on_state_change(self, callback):
         """Register a callback for state changes (e.g., for the View)."""
@@ -60,18 +61,18 @@ class Scheduler:
             process: Process instance to add
         Returns: None
         """
+        # identify queue for the process that has arrived
+        if process.arrival_time<=self.clock.now(): # put process in ready queue if the arrival time has passed
+            queue = self.ready_queue
+        else:
+            queue = self.future_processes # put process in future_process list if not
+        
+        queue.append(process) # add process to queue
 
-        process.state = "ready"  # sets the current process state to ready
-
-        # adds the process to the end of the ready queue
-        self.ready_queue.append(process)
-
-        # Log the event
-        self._record(
-            f"{process.pid} added to ready queue",
-            event_type="enqueue",
-            proc=process.pid,
-        )
+        if queue is self.ready_queue: # if th process is going to the ready queue, set as ready
+            process.state = "ready"
+          # keep track of process 
+            self._record(f"{process.pid} added to queue", event_type = "enqueue", proc = process.pid)
 
     def processes(self):
         """Return all processes known to the scheduler"""
@@ -154,6 +155,12 @@ class Scheduler:
         Advance the scheduler by one time unit
         Returns: None
         """
+        for p in self.future_processes[:]: #Iterate over copies, to later be able to manipulate the processes safely  
+            if p.arrival_time <= self.clock.now(): # check if the arrival time has been reached
+                p.state = "ready"
+                self.ready_queue.append(p) # add process to ready queue to later be scheduled 
+                self._record(f"{p.pid} added to ready queue", event_type = "arrival", proc = p.pid)
+                self.future_processes.remove(p) # remove the process from future_processes
         # Iterate over each CPU and tick (decrement burst time) by 1 if not idle
         for cpu in self.cpus:
 
