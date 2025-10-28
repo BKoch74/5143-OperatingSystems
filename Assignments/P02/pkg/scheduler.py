@@ -28,7 +28,7 @@ class Scheduler:
         export_json(filename): export the structured log to a JSON file
         export_csv(filename): export the structured log to a CSV file"""
 
-     def __init__(self, num_cpus=1, num_ios=1, verbose=True):
+    def __init__(self, num_cpus=1, num_ios=1, verbose=True):
 
         self.clock = Clock()  # shared clock instance for all components Borg pattern
 
@@ -69,10 +69,14 @@ class Scheduler:
         
         queue.append(process) # add process to queue
 
-        if queue is self.ready_queue: # if th process is going to the ready queue, set as ready
+        if queue is self.ready_queue: # if the process is going to the ready queue, set as ready
             process.state = "ready"
           # keep track of process 
-            self._record(f"{process.pid} added to queue", event_type = "enqueue", proc = process.pid)
+            self._record(
+                f"{process.pid} added to queue",
+                event_type = "enqueue",
+                proc = process.pid
+            )
 
     def processes(self):
         """Return all processes known to the scheduler"""
