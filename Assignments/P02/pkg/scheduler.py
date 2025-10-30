@@ -165,11 +165,24 @@ class Scheduler:
                 self.ready_queue.append(p) # add process to ready queue to later be scheduled 
                 self._record(f"{p.pid} added to ready queue", event_type = "arrival", proc = p.pid)
                 self.future_processes.remove(p) # remove the process from future_processes
-        # Iterate over each CPU and tick (decrement burst time) by 1 if not idle
+        # CPU Ticks
         for cpu in self.cpus:
 
-            # proc is the process that just finished its CPU burst or None
             proc = cpu.tick()
+
+            #decrement quantum if CPU is running
+            if cpu.current:
+                cpu.current.remaining_quantum -=1
+                if cpu.current.remaining_quantum <= 0 and cpu.current.remaining_burst_time() >0:
+                    prem_process = cpu.current
+                    cpu.current = None
+                    prem_process.state = "ready"
+                    prem_process.remaining_quantum = prem_process.quantum
+                    self.ready_queue.append(prem_process)
+                    self._record(
+                        f"{prem_process.pid} quantum expired",
+                        event_type = "preempted", proc = prem_process.pid, device = f"CPU{cpu.pid}",
+                    )
 
             # If a process finished its CPU burst, handle it.
             # This means that proc is not None
