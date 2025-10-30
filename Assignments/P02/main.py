@@ -2,7 +2,8 @@
 TODO: Add an arrival time to the generated processes and only allow entry when the clock == arrival time.
 TODO: Add a quantum (time slice) countdown for Round Robin scheduling.
 """
-
+import pygame
+import time
 import collections
 import csv
 import json
@@ -13,6 +14,7 @@ from rich import print
 from pkg.clock import Clock
 from pkg.scheduler import Scheduler
 from pkg.process import Process
+from pkg.visualizer import visualizer
 
 
 # ---------------------------------------
