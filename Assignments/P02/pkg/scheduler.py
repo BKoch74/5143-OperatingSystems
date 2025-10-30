@@ -126,29 +126,15 @@ class Scheduler:
 
     def _snapshot(self):
         """Take a snapshot of the current state for logging"""
-
-        # The join method is used to concatenate the process IDs in
-        # the ready queue into a single string, separated by commas.
-        # If the ready queue is empty, it defaults to the string "empty".
-        rq = ", ".join([p.pid for p in self.ready_queue]) or "empty"
-
-        # Same as above but for the wait queue
-        wq = ", ".join([p.pid for p in self.wait_queue]) or "empty"
-
-        # Join the status of each CPU and IO device into strings separated by " | "
-        cpus = " | ".join([str(cpu) for cpu in self.cpus])
-
-        # Same as above but for IO devices
-        ios = " | ".join([str(dev) for dev in self.io_devices])
-
-        # Creates a string snapshot of the current state of
-        # the scheduler including ready queue, wait queue, CPUs, and IO devices
-        snap = f"  [Ready: {rq}]  [Wait: {wq}]  Cpus:[{cpus}]  Ios:[{ios}]"
-
-        # Append the snapshot to the log
-        self.log.append(snap)
-        if self.verbose:
-            print(snap)
+        return {
+            "clock": self.clock.now(),
+            "ready": [(p.pid, p.remaining_quantum) for p in self.ready_queue],
+            "wait": [p.pid for p in self.wait_queue],
+            "cpu": [cpu.current.pid if cpu.current else None for cpu in self.cpus],
+            "io": [dev.current.pid if dev.current else None for dev in self.io_devices],
+            "finished": [p.pid for p in self.finished],
+        }
+        
 
     def _callback(self, pid, new_state):
         """Placeholder for state change callback"""
