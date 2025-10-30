@@ -3,10 +3,10 @@ import sys
 import time 
 
 #Visualizer settings
-WIDTH,HEIGHT = 800, 600
-BG_COLOR = (245, 245, 245)
-FPS = 2
-QUEUE_WIDTH, QUEUE_HEIGHT = 100, 300
+WIDTH,HEIGHT = 800, 600  #pygame window measurements
+BG_COLOR = (245, 245, 245) #Window background color (light gray)
+FPS = 2 
+QUEUE_WIDTH, QUEUE_HEIGHT = 100, 300 #measurement of queue rectangle
 MARGIN = 50
 BOX_HEIGHT = 50
 BOX_PADDING = 5
@@ -23,7 +23,7 @@ RUNNING_COLOR = (255, 140, 0)   # Orange
 class Visualizer:
   def _init_(self, scheduler):
     self.scheduler = scheduler
-    pygame.init()
+    pygame.init()   #Initialize pygame library
     self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Scheduler Visualizer")
     self.clock = pygame.time.Clock()
@@ -36,7 +36,7 @@ def queue_Design(self, x, y, title, items, color):
         # Draw queue title
         title_surf = self.font.render(title, True, BLACK)
         self.screen.blit(title_surf, (x + 10, y + 5))
-        # Draw each item
+        # Draw each process as a box inside the queue
         for i, pid in enumerate(items):
             box_y = y + 30 + i * (BOX_HEIGHT + BOX_PADDING)
             pygame.draw.rect(self.screen, RUNNING_COLOR,
@@ -46,13 +46,13 @@ def queue_Design(self, x, y, title, items, color):
                 self.screen.blit(pid_surf, (x + 15, box_y + 10))
 def run(self):
         while True:
-            # Event handling
+            # Detect quit event
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
 
-            # Get snapshot
+            # Get scheduler state snapshot
             snap = self.scheduler.snapshot()
 
             # Clear screen
@@ -68,7 +68,7 @@ def run(self):
             clock_surf = self.font.render(f"Clock: {snap['clock']}", True, BLACK)
             self.screen.blit(clock_surf, (WINDOW_WIDTH - 150, 10))
 
-            # Update display
+            # Update pygame display
             pygame.display.flip()
 
             # Wait for next tick
