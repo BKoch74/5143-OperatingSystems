@@ -20,6 +20,8 @@ class Process:
         self.bursts = bursts[:]  # [{"cpu": X}, {"io": {...}}, ...]
         self.priority = priority
         self.state = "new"
+        self.quantum = quantum
+        self.remaining_quantum = quantum
 
     def current_burst(self):
         """Get the current burst"""
@@ -31,8 +33,10 @@ class Process:
         if self.bursts:
             # Remove the first burst
             self.bursts.pop(0)
-        # No return needed - modifies in place and current_burst() will reflect change
+            # No return needed - modifies in place and current_burst() will reflect change
+            self.remaining_quantum = self.quantum
 
+            
     def __repr__(self):
         # return self.__str__()
         return f"{self.pid}"
