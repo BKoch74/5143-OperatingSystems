@@ -21,7 +21,7 @@ IO_COLOR = (255, 255, 102)      # Yellow
 RUNNING_COLOR = (255, 140, 0)   # Orange
 
 class Visualizer:
-  def _init_(self, scheduler):
+  def __init__(self, scheduler):
     self.scheduler = scheduler
     pygame.init()   #Initialize pygame library
     self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
