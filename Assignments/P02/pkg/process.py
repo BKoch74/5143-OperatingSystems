@@ -14,7 +14,7 @@ class Process:
         __str__(): user-friendly string representation
     """
 
-    def __init__(self, pid, bursts, priority=0):
+    def __init__(self, pid, bursts, priority=0, quantum=4):
         """Initialize process with pid, bursts, and priority"""
         self.pid = pid
         self.bursts = bursts[:]  # [{"cpu": X}, {"io": {...}}, ...]
