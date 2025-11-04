@@ -13,7 +13,7 @@ from rich import print
 from pkg.clock import Clock
 from pkg.scheduler import Scheduler
 from pkg.process import Process
-from pkg.visualizer import visualizer
+from pkg.visualizer import Visualizer
 
 
 # ---------------------------------------
