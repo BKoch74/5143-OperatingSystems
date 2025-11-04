@@ -127,12 +127,12 @@ class Scheduler:
     def _snapshot(self):
         """Take a snapshot of the current state for logging"""
         return {
-            "clock": self.clock.now(),
-            "ready": [(p.pid, p.remaining_quantum) for p in self.ready_queue],
-            "wait": [p.pid for p in self.wait_queue],
-            "cpu": [cpu.current.pid if cpu.current else None for cpu in self.cpus],
-            "io": [dev.current.pid if dev.current else None for dev in self.io_devices],
-            "finished": [p.pid for p in self.finished],
+            "clock": int(self.clock.now()),
+            "ready": [{"pid": p.pid, "remaining": p.remaining_quantum} for p in self.ready_queue],
+            "wait": [{"pid": p.pid} for p in self.wait_queue],
+            "cpu": [{"pid": cpu.current.pid if cpu.current else None} for cpu in self.cpus],
+            "io": [{"pid": dev.current.pid if dev.current else None} for dev in self.io_devices],
+            "finished": [{"pid": p.pid} for p in self.finished],
         }
         
 
@@ -167,7 +167,7 @@ class Scheduler:
                     self.ready_queue.append(prem_process)
                     self._record(
                         f"{prem_process.pid} quantum expired",
-                        event_type = "preempted", proc = prem_process.pid, device = f"CPU{cpu.pid}",
+                        event_type = "preempted", proc = prem_process.pid, device = f"CPU{cpu.cid}",
                     )
 
             # If a process finished its CPU burst, handle it.
@@ -333,9 +333,19 @@ class Scheduler:
         keys = self.events[0].keys()
 
         # Open the file in write mode with newline='' to prevent extra blank lines on Windows
-        with open(filename, "w", newline="") as f:
+        with open(filename, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=keys)
             writer.writeheader()
             writer.writerows(self.events)
         if self.verbose:
             print(f"✅ Timeline exported to {filename}")
+
+    def snapshot(self):
+        print ("CPU attributes:", dir(self.cpus[0]))
+        return {
+            "ready": self.ready_queue,
+            "wait": self.wait_queue,
+            "cpu": [cpu.current for cpu in self.cpus if cpu.current],
+            "io": [io.current for io in self.io_devices if io.current],
+            "clock": self.clock
+        }
