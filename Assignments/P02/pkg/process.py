@@ -14,7 +14,7 @@ class Process:
         __str__(): user-friendly string representation
     """
 
-    def __init__(self, pid, bursts, priority=0, quantum=4):
+    def __init__(self, pid, bursts, priority=0, quantum=4, arrival_time=0):
         """Initialize process with pid, bursts, and priority"""
         self.pid = pid
         self.bursts = bursts[:]  # [{"cpu": X}, {"io": {...}}, ...]
@@ -22,6 +22,7 @@ class Process:
         self.state = "new"
         self.quantum = quantum
         self.remaining_quantum = quantum
+        self.arrival_time = arrival_time
 
     def current_burst(self):
         """Get the current burst"""
