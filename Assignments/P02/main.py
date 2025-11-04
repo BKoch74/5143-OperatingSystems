@@ -2,6 +2,7 @@
 TODO: Add an arrival time to the generated processes and only allow entry when the clock == arrival time.
 TODO: Add a quantum (time slice) countdown for Round Robin scheduling.
 """
+
 import time
 import collections
 import csv
@@ -110,6 +111,10 @@ def argParse():
 # Example usage
 # ---------------------------------------
 if __name__ == "__main__":
+
+    scheduler = Scheduler()
+    visualizer = Visualizer(scheduler)
+    visualizer.run()
     # Parse command line arguments
     args = argParse()
 
