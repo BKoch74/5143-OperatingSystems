@@ -24,6 +24,12 @@ class Process:
         self.remaining_quantum = quantum
         self.arrival_time = arrival_time
 
+    def remaining_burst_time(self):
+        burst = self.current_burst()
+        if burst and "cpu" in burst:
+            return burst["cpu"]
+        return 0
+    
     def current_burst(self):
         """Get the current burst"""
         # Return the first burst if it exists, else None
