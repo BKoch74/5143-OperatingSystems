@@ -62,7 +62,7 @@ def load_processes_from_json(filename="generated_processes.json", limit=None):
                     {"io": {"type": b["io"]["type"], "duration": b["io"]["duration"]}}
                 )
 
-        proc = Process(pid=p["pid"], bursts=bursts, priority=p["priority"])
+        proc = Process(pid=p["pid"], bursts=bursts, priority=p.get("priority",0), quantum=p.get("quantum",4), arrival_time=p.get("arrival_time",0))
         processes.append(proc)
 
     return processes
