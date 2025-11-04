@@ -66,7 +66,7 @@ def run(self):
 
             # Draw clock
             clock_surf = self.font.render(f"Clock: {snap['clock']}", True, BLACK)
-            self.screen.blit(clock_surf, (WINDOW_WIDTH - 150, 10))
+            self.screen.blit(clock_surf, (WIDTH - 150, 10))
 
             # Update pygame display
             pygame.display.flip()
