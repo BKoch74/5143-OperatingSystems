@@ -237,11 +237,12 @@ class Scheduler:
         Advance the scheduler by one time unit
         Returns: None
         """
+        # Handle arrivals
         arrivals = []
         for p in self.future_processes[:]:  # Iterate over copy
             if p.arrival_time <= self.clock.now():
                 p.state = "ready"
-                self._reinsert_process_to_ready(p)  # Use algorithm-specific insertion!
+                self._reinsert_process_to_ready(p)  # Algorithm-specific insertion
                 arrivals.append(p)
                 self.future_processes.remove(p)
 
@@ -251,9 +252,9 @@ class Scheduler:
                 event_type="arrival",
                 proc=p.pid
             )
+
         # CPU Ticks
         for cpu in self.cpus:
-
             proc = cpu.tick()
 
             # Quantum handling only for RR algorithm
@@ -265,10 +266,7 @@ class Scheduler:
                     cpu.current = None
                     prem_process.state = "ready"
                     prem_process.remaining_quantum = prem_process.quantum
-
-                    # Use algorithm-specific reinsertion
                     self._reinsert_process_to_ready(prem_process)
-
                     self._record(
                         f"{prem_process.pid} quantum expired (RR preemption)",
                         event_type="preempted",
@@ -276,44 +274,31 @@ class Scheduler:
                         device=f"CPU{cpu.cid}",
                     )
 
-            # Check for preemption in SRTF or Preemptive Priority
+            # Preemption for SRTF / PriorityPreemptive
             elif cpu.current and self.ready_queue and self.algorithm in ["SRTF", "PriorityPreemptive"]:
                 current_proc = cpu.current
-
                 if self.algorithm == "SRTF":
-                    shortest_ready = min(
-                        self.ready_queue,
-                        key=lambda p: p.remaining_burst_time()
-                    )
+                    shortest_ready = min(self.ready_queue, key=lambda p: p.remaining_burst_time())
                     if shortest_ready.remaining_burst_time() < current_proc.remaining_burst_time():
-                        # Preempt current process
                         cpu.current = None
                         current_proc.state = "ready"
                         self._reinsert_process_to_ready(current_proc)
-
-                        # Dispatch shorter process
                         proc = self._select_process_for_cpu()
                         cpu.assign(proc)
-
                         self._record(
                             f"{shortest_ready.pid} preempts {current_proc.pid} (SRTF)",
                             event_type="preempted",
                             proc=current_proc.pid,
                             device=f"CPU{cpu.cid}",
                         )
-
                 elif self.algorithm == "PriorityPreemptive":
                     highest_ready = min(self.ready_queue, key=lambda p: p.priority)
                     if highest_ready.priority < current_proc.priority:
-                        # Preempt current process
                         cpu.current = None
                         current_proc.state = "ready"
                         self._reinsert_process_to_ready(current_proc)
-
-                        # Dispatch higher priority process
                         proc = self._select_process_for_cpu()
                         cpu.assign(proc)
-
                         self._record(
                             f"{highest_ready.pid} preempts {current_proc.pid} (Priority)",
                             event_type="preempted",
@@ -321,52 +306,38 @@ class Scheduler:
                             device=f"CPU{cpu.cid}",
                         )
 
-            # If a process finished its CPU burst, handle it.
-            # This means that proc is not None
+            # Handle CPU burst completion
             if proc:
-                burst = proc.current_burst()
-
-                # If the next burst is I/O, move to wait queue
-                # If no more bursts, move to finished
-                # If next burst is CPU, move to ready queue
-                if burst and "io" in burst:
+                next_burst = proc.current_burst()
+                if next_burst is None:
+                    # Finished all bursts
+                    proc.state = "finished"
+                    self.finished.append(proc)
+                    if self._callback:
+                        self._callback(proc.pid, "finished")
+                    self._record(
+                        f"{proc.pid} finished all bursts",
+                        event_type="finished",
+                        proc=proc.pid,
+                        device=f"CPU{cpu.cid}",
+                    )
+                elif "io" in next_burst:
                     proc.state = "waiting"
                     self.wait_queue.append(proc)
-                    # if self._callback:
-                    #     self._callback(proc.pid, "waiting")
                     self._record(
                         f"{proc.pid} finished CPU → wait queue",
                         event_type="cpu_to_io",
                         proc=proc.pid,
                         device=f"CPU{cpu.cid}",
                     )
-
-                # If the next burst is CPU, move to ready queue
-                elif burst and "cpu" in burst:
-                    # Use algorithm-specific reinsertion
+                elif "cpu" in next_burst:
+                    proc.state = "ready"
                     self._reinsert_process_to_ready(proc)
                     if self._callback:
                         self._callback(proc.pid, "ready")
-
-                    # logs event of moving process to ready queue
                     self._record(
                         f"{proc.pid} finished CPU → ready queue",
                         event_type="cpu_to_ready",
-                        proc=proc.pid,
-                        device=f"CPU{cpu.cid}",
-                    )
-                # No more bursts, process is finished
-                else:
-                    proc.state = "finished"
-                    self.finished.append(proc)
-
-                    if self._callback:
-                        self._callback(proc.pid, "finished")
-
-                    # logs event of process finishing all bursts
-                    self._record(
-                        f"{proc.pid} finished all bursts",
-                        event_type="finished",
                         proc=proc.pid,
                         device=f"CPU{cpu.cid}",
                     )
@@ -375,36 +346,26 @@ class Scheduler:
         for dev in self.io_devices:
             proc = dev.tick()
             if proc:
-                burst = proc.current_burst()
-
-                # If the next burst is I/O, move to wait queue
-                # If no more bursts, move to finished
-                # If next burst is CPU, move to ready queue
-                if burst:
-                    proc.state = "ready"
-                    # Use algorithm-specific reinsertion
-                    self._reinsert_process_to_ready(proc)
-                    if self._callback:
-                        self._callback(proc.pid, "ready")
-
-                    # logs event of moving process to ready queue
-                    self._record(
-                        f"{proc.pid} finished I/O → ready queue",
-                        event_type="io_to_ready",
-                        proc=proc.pid,
-                        device=f"IO{dev.did}",
-                    )
-                # else process is finished
-                else:
+                next_burst = proc.current_burst()
+                if next_burst is None:
                     proc.state = "finished"
                     self.finished.append(proc)
                     if self._callback:
                         self._callback(proc.pid, "finished")
-
-                    # logs event of process finishing all bursts
                     self._record(
                         f"{proc.pid} finished all bursts",
                         event_type="finished",
+                        proc=proc.pid,
+                        device=f"IO{dev.did}",
+                    )
+                else:
+                    proc.state = "ready"
+                    self._reinsert_process_to_ready(proc)
+                    if self._callback:
+                        self._callback(proc.pid, "ready")
+                    self._record(
+                        f"{proc.pid} finished I/O → ready queue",
+                        event_type="io_to_ready",
                         proc=proc.pid,
                         device=f"IO{dev.did}",
                     )
@@ -412,13 +373,8 @@ class Scheduler:
         # Dispatch to CPUs
         for cpu in self.cpus:
             if not cpu.is_busy() and self.ready_queue:
-                # Use algorithm-specific selection
                 proc = self._select_process_for_cpu()
-
-                # Assign process to CPU
                 cpu.assign(proc)
-
-                # Log the dispatch event
                 self._record(
                     f"{proc.pid} dispatched to CPU{cpu.cid} ({self.algorithm})",
                     event_type="dispatch_cpu",
@@ -427,7 +383,6 @@ class Scheduler:
                 )
 
         # Dispatch to IO devices
-        # Same logic as above but for IO devices and wait queue
         for dev in self.io_devices:
             if not dev.is_busy() and self.wait_queue:
                 proc = self.wait_queue.popleft()
