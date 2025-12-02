@@ -112,9 +112,6 @@ def argParse():
 # ---------------------------------------
 if __name__ == "__main__":
 
-    scheduler = Scheduler()
-    visualizer = Visualizer(scheduler)
-    visualizer.run()
     # Parse command line arguments
     args = argParse()
 
@@ -146,7 +143,8 @@ if __name__ == "__main__":
         sched.add_process(p)
 
     # Run the scheduler
-    sched.run()
+    visualizer = Visualizer(sched)
+    visualizer.run()
 
     # Print final log and stats
     print("\n--- Final Log ---")

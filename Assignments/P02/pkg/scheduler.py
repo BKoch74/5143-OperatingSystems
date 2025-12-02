@@ -341,11 +341,12 @@ class Scheduler:
             print(f"✅ Timeline exported to {filename}")
 
     def snapshot(self):
-        print ("CPU attributes:", dir(self.cpus[0]))
         return {
-            "ready": self.ready_queue,
-            "wait": self.wait_queue,
-            "cpu": [cpu.current for cpu in self.cpus if cpu.current],
-            "io": [io.current for io in self.io_devices if io.current],
-            "clock": self.clock
+            "ready": [{"pid": p.pid} for p in self.ready_queue],
+            "wait": [{"pid": p.pid} for p in self.wait_queue],
+            "cpu": [{"pid": cpu.current.pid if cpu.current else None} for cpu in self.cpus],
+            "io": [{"pid": dev.current.pid if dev.current else None} for dev in self.io_devices],
+            "finished": [{"pid": p.pid} for p in self.finished],
+            "clock": int(self.clock.now())
         }
+

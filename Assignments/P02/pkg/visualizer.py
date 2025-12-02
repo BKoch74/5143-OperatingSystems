@@ -64,8 +64,12 @@ class Visualizer:
                     pygame.quit()
                     sys.exit()
 
-            # Get scheduler state snapshot
+            # Advance the scheduler
+            self.scheduler.step()
+
+            # Get scheduler state
             snap = self.scheduler.snapshot()
+
             print("Ready:", snap["ready"])
             print("Wait:", snap["wait"])
             print("CPU:", snap["cpu"])
@@ -80,6 +84,7 @@ class Visualizer:
             self.draw_queue(MARGIN + QUEUE_WIDTH + MARGIN, MARGIN, "Wait Queue", snap["wait"], WAIT_COLOR)
             self.draw_queue(MARGIN + 2*(QUEUE_WIDTH + MARGIN), MARGIN, "CPU", snap["cpu"], CPU_COLOR)
             self.draw_queue(MARGIN + 3*(QUEUE_WIDTH + MARGIN), MARGIN, "IO", snap["io"], IO_COLOR)
+            self.draw_queue(MARGIN + 4 * (QUEUE_WIDTH + MARGIN), MARGIN,"Finished", snap["finished"], IDLE_COLOR)
 
             # Draw clock
             clock_surf = self.font.render(f"Clock: {snap['clock']}", True, BLACK)
