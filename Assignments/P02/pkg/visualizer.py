@@ -8,7 +8,7 @@ BG_COLOR = (245, 245, 245) #Window background color (light gray)
 FPS = 2 
 QUEUE_WIDTH, QUEUE_HEIGHT = 100, 300 #measurement of queue rectangle
 MARGIN = 50
-BOX_HEIGHT = 100
+BOX_HEIGHT = 20
 BOX_PADDING = 5
 
 #design colors
