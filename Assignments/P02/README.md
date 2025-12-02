@@ -19,8 +19,9 @@ Group Members:
 | insert feature      | Insert Description       |  Aretha  |
 
 ## Difficulties/Challenges:
--Visualizer creates rectangles and titles, but the processes fail to move from the ready queue. 
-
+- Visualizer creates rectangles and titles, but the processes fail to move from the ready queue. **(fixed)**
+- processes overflow (display out of designated rectangles) in the ready and finished queues. **(fixed)**
+- Single process manages to leave finished queue, then return to CPU. **(fixed)**
 
 
 ## Non-Working Components:
