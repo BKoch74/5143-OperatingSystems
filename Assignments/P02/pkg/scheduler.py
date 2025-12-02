@@ -28,7 +28,7 @@ class Scheduler:
         export_json(filename): export the structured log to a JSON file
         export_csv(filename): export the structured log to a CSV file"""
 
-    def __init__(self, num_cpus=1, num_ios=1, verbose=True):
+    def __init__(self, num_cpus=1, num_ios=1, verbose=True, algorithm = "RR"):
 
         self.clock = Clock()  # shared clock instance for all components Borg pattern
 
@@ -49,6 +49,98 @@ class Scheduler:
         self.events = []  # structured log for export
         self.verbose = verbose  # if True, print log entries to console
         self.future_processes = [] # processes that have not yet started
+        self.algorithm = algorithm
+
+    def _select_process_for_cpu(self):
+        """Select a process from ready queue based on scheduling algorithm"""
+        if not self.ready_queue:
+            return None
+
+        if self.algorithm == "FCFS":
+            # First Come First Served - just take from left
+            return self.ready_queue.popleft()
+
+        elif self.algorithm == "SJF":
+            # Shortest Job First - find process with shortest next CPU burst
+            ready_list = list(self.ready_queue)
+            shortest_proc = min(
+                ready_list,
+                key=lambda p: p.current_burst().get("cpu", float('inf')) if p.current_burst() else float('inf')
+            )
+            self.ready_queue.remove(shortest_proc)
+            return shortest_proc
+
+        elif self.algorithm == "SRTF":
+            # Shortest Remaining Time First (preemptive SJF)
+            ready_list = list(self.ready_queue)
+            shortest_proc = min(
+                ready_list,
+                key=lambda p: p.remaining_burst_time()
+            )
+            self.ready_queue.remove(shortest_proc)
+            return shortest_proc
+
+        elif self.algorithm == "Priority":
+            ready_list = list(self.ready_queue)
+            highest_priority = min(ready_list, key=lambda p: p.priority)
+            self.ready_queue.remove(highest_priority)
+            return highest_priority
+
+        elif self.algorithm == "PriorityPreemptive":
+            # Preemptive priority scheduling
+            ready_list = list(self.ready_queue)
+            highest_priority = min(ready_list, key=lambda p: p.priority)
+            self.ready_queue.remove(highest_priority)
+            return highest_priority
+
+        elif self.algorithm == "RR":
+            return self.ready_queue.popleft()
+
+        else:
+            return self.ready_queue.popleft()
+
+    def _reinsert_process_to_ready(self, process):
+        """Reinsert a process to ready queue based on algorithm"""
+        if self.algorithm in ["SJF", "SRTF"]:
+            # Insert in sorted order by burst/remaining time
+            if self.algorithm == "SJF":
+                key_value = process.current_burst().get("cpu", float('inf')) if process.current_burst() else float(
+                    'inf')
+            else:  # SRTF
+                key_value = process.remaining_burst_time()
+
+            # Find position to insert
+            pos = 0
+            for p in self.ready_queue:
+                if self.algorithm == "SJF":
+                    p_value = p.current_burst().get("cpu", float('inf')) if p.current_burst() else float('inf')
+                else:  # SRTF
+                    p_value = p.remaining_burst_time()
+
+                if key_value < p_value:
+                    break
+                pos += 1
+
+            # Convert deque to list, insert, convert back
+            temp_list = list(self.ready_queue)
+            temp_list.insert(pos, process)
+            self.ready_queue = collections.deque(temp_list)
+
+        elif self.algorithm in ["Priority", "PriorityPreemptive"]:
+            # Insert in sorted order by priority
+            pos = 0
+            for p in self.ready_queue:
+                if process.priority < p.priority:
+                    break
+                pos += 1
+
+            temp_list = list(self.ready_queue)
+            temp_list.insert(pos, process)
+            self.ready_queue = collections.deque(temp_list)
+
+        else:
+            # FCFS, RR - append to right
+            self.ready_queue.append(process)
 
     def on_state_change(self, callback):
         """Register a callback for state changes (e.g., for the View)."""
@@ -145,30 +237,89 @@ class Scheduler:
         Advance the scheduler by one time unit
         Returns: None
         """
-        for p in self.future_processes[:]: #Iterate over copies, to later be able to manipulate the processes safely  
-            if p.arrival_time <= self.clock.now(): # check if the arrival time has been reached
+        arrivals = []
+        for p in self.future_processes[:]:  # Iterate over copy
+            if p.arrival_time <= self.clock.now():
                 p.state = "ready"
-                self.ready_queue.append(p) # add process to ready queue to later be scheduled 
-                self._record(f"{p.pid} added to ready queue", event_type = "arrival", proc = p.pid)
-                self.future_processes.remove(p) # remove the process from future_processes
+                self._reinsert_process_to_ready(p)  # Use algorithm-specific insertion!
+                arrivals.append(p)
+                self.future_processes.remove(p)
+
+        for p in arrivals:
+            self._record(
+                f"{p.pid} arrived (arrival_time={p.arrival_time})",
+                event_type="arrival",
+                proc=p.pid
+            )
         # CPU Ticks
         for cpu in self.cpus:
 
             proc = cpu.tick()
 
-            #decrement quantum if CPU is running
-            if cpu.current:
-                cpu.current.remaining_quantum -=1
-                if cpu.current.remaining_quantum <= 0 and cpu.current.remaining_burst_time() >0:
+            # Quantum handling only for RR algorithm
+            if self.algorithm == "RR" and cpu.current:
+                cpu.current.remaining_quantum -= 1
+                if cpu.current.remaining_quantum <= 0 and cpu.current.remaining_burst_time() > 0:
+                    # Preempt for RR
                     prem_process = cpu.current
                     cpu.current = None
                     prem_process.state = "ready"
                     prem_process.remaining_quantum = prem_process.quantum
-                    self.ready_queue.append(prem_process)
+
+                    # Use algorithm-specific reinsertion
+                    self._reinsert_process_to_ready(prem_process)
+
                     self._record(
-                        f"{prem_process.pid} quantum expired",
-                        event_type = "preempted", proc = prem_process.pid, device = f"CPU{cpu.cid}",
+                        f"{prem_process.pid} quantum expired (RR preemption)",
+                        event_type="preempted",
+                        proc=prem_process.pid,
+                        device=f"CPU{cpu.cid}",
                     )
+
+            # Check for preemption in SRTF or Preemptive Priority
+            elif cpu.current and self.ready_queue and self.algorithm in ["SRTF", "PriorityPreemptive"]:
+                current_proc = cpu.current
+
+                if self.algorithm == "SRTF":
+                    shortest_ready = min(
+                        self.ready_queue,
+                        key=lambda p: p.remaining_burst_time()
+                    )
+                    if shortest_ready.remaining_burst_time() < current_proc.remaining_burst_time():
+                        # Preempt current process
+                        cpu.current = None
+                        current_proc.state = "ready"
+                        self._reinsert_process_to_ready(current_proc)
+
+                        # Dispatch shorter process
+                        proc = self._select_process_for_cpu()
+                        cpu.assign(proc)
+
+                        self._record(
+                            f"{shortest_ready.pid} preempts {current_proc.pid} (SRTF)",
+                            event_type="preempted",
+                            proc=current_proc.pid,
+                            device=f"CPU{cpu.cid}",
+                        )
+
+                elif self.algorithm == "PriorityPreemptive":
+                    highest_ready = min(self.ready_queue, key=lambda p: p.priority)
+                    if highest_ready.priority < current_proc.priority:
+                        # Preempt current process
+                        cpu.current = None
+                        current_proc.state = "ready"
+                        self._reinsert_process_to_ready(current_proc)
+
+                        # Dispatch higher priority process
+                        proc = self._select_process_for_cpu()
+                        cpu.assign(proc)
+
+                        self._record(
+                            f"{highest_ready.pid} preempts {current_proc.pid} (Priority)",
+                            event_type="preempted",
+                            proc=current_proc.pid,
+                            device=f"CPU{cpu.cid}",
+                        )
 
             # If a process finished its CPU burst, handle it.
             # This means that proc is not None
@@ -192,7 +343,8 @@ class Scheduler:
 
                 # If the next burst is CPU, move to ready queue
                 elif burst and "cpu" in burst:
-                    self.ready_queue.append(proc)
+                    # Use algorithm-specific reinsertion
+                    self._reinsert_process_to_ready(proc)
                     if self._callback:
                         self._callback(proc.pid, "ready")
 
@@ -230,7 +382,8 @@ class Scheduler:
                 # If next burst is CPU, move to ready queue
                 if burst:
                     proc.state = "ready"
-                    self.ready_queue.append(proc)
+                    # Use algorithm-specific reinsertion
+                    self._reinsert_process_to_ready(proc)
                     if self._callback:
                         self._callback(proc.pid, "ready")
 
@@ -258,19 +411,16 @@ class Scheduler:
 
         # Dispatch to CPUs
         for cpu in self.cpus:
-
-            # If CPU is free and there's a process in ready queue
             if not cpu.is_busy() and self.ready_queue:
-
-                # Pop process from left of ready queue
-                proc = self.ready_queue.popleft()
+                # Use algorithm-specific selection
+                proc = self._select_process_for_cpu()
 
                 # Assign process to CPU
                 cpu.assign(proc)
 
                 # Log the dispatch event
                 self._record(
-                    f"{proc.pid} dispatched to CPU{cpu.cid}",
+                    f"{proc.pid} dispatched to CPU{cpu.cid} ({self.algorithm})",
                     event_type="dispatch_cpu",
                     proc=proc.pid,
                     device=f"CPU{cpu.cid}",

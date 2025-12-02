@@ -111,24 +111,18 @@ def argParse():
 # Example usage
 # ---------------------------------------
 if __name__ == "__main__":
-
     # Parse command line arguments
     args = argParse()
 
     # Get parameters if they exist, else use defaults
-    # file_num is used to load different process files and save different timeline files
     file_num = args.get("file_num", 1)
-
-    # Limit is used to restrict the number of processes loaded
     limit = args.get("limit", None)
-
-    # Number of CPUs and IO devices
     cpus = args.get("cpus", 1)
     ios = args.get("ios", 1)
+    algorithm = args.get("algorithm", "RR")  # NEW: Add algorithm parameter
 
-    # Run the simulation
     clock = Clock()
-    print(f"\n=== Simulation with {cpus} CPU(s) and {ios} IO device(s) ===")
+    print(f"\n=== Simulation with {cpus} CPU(s), {ios} IO device(s), Algorithm: {algorithm} ===")
 
     # Load processes from JSON file
     processes = load_processes_from_json(
@@ -136,7 +130,7 @@ if __name__ == "__main__":
     )
 
     # Initialize scheduler and add processes
-    sched = Scheduler(num_cpus=cpus, num_ios=ios, verbose=True)
+    sched = Scheduler(num_cpus=cpus, num_ios=ios, verbose=True, algorithm=algorithm)
 
     # Add processes to scheduler
     for p in processes:

@@ -110,16 +110,34 @@ def generate_process(user_class, max_bursts=20):
 # ----------------------------------------------------------
 # Generate N processes across classes
 # ----------------------------------------------------------
+# ----------------------------------------------------------
+# Generate N processes across classes
+# ----------------------------------------------------------
 def generate_processes(user_classes, n=100):
     processes = []
 
     total_rate = sum(cls["arrival_rate"] for cls in user_classes)
     weights = [cls["arrival_rate"] / total_rate for cls in user_classes]
 
-    for _ in range(n):
+    current_time = 0
+    arrival_rate_mean = 5  # Mean time between arrivals
+    arrival_rate_stddev = 2  # Std dev of time between arrivals
+
+    for i in range(n):
         user_class = random.choices(user_classes, weights=weights, k=1)[0]
         process = generate_process(user_class)
+
+        # Add arrival time (staggered arrivals)
+        process["arrival_time"] = current_time
+
+        # Update time for next process
+        next_arrival = max(0, int(random.gauss(arrival_rate_mean, arrival_rate_stddev)))
+        current_time += next_arrival
+
         processes.append(process)
+
+    # Sort by arrival time (optional, for readability)
+    processes.sort(key=lambda p: p["arrival_time"])
 
     return processes
 
