@@ -19,6 +19,8 @@ Group Members:
 | insert feature      | Insert Description       |  Aretha  |
 
 ## Difficulties/Challenges:
+-Visualizer creates rectangles and titles, but the processes fail to move from the ready queue. 
+
 
 
 ## Non-Working Components:

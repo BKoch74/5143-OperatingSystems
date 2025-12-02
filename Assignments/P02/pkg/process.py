@@ -18,6 +18,16 @@ class Process:
         """Initialize process with pid, bursts, and priority"""
         self.pid = pid
         self.bursts = bursts[:]  # [{"cpu": X}, {"io": {...}}, ...]
+
+        normalized = []
+        for burst in self.bursts:
+            # If it's an IO burst but incorrectly formatted
+            if "io" in burst and isinstance(burst["io"], int):
+                burst = {"io": {"duration": burst["io"]}}
+            normalized.append(burst)
+
+        self.bursts = normalized
+
         self.priority = priority
         self.state = "new"
         self.quantum = quantum
